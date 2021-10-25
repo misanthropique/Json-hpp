@@ -9,11 +9,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef USE_GMP
@@ -43,10 +46,12 @@ private:
 	 */
 	enum class eNumberType
 	{
-		FLOATING,
-		SIGNED_INTEGRAL,
-		UNSIGNED_INTEGRAL,
-		NONE
+		FLOATING,                     // Cast to a long double before anything else
+		SIGNED_INTEGRAL,              // Cast to a int64_t before anything else
+		UNSIGNED_INTEGRAL,            // Cast to a uint64_t before anything else
+		MULTIPLE_PRECISION_FLOAT,     // Use gmz_t for the number
+		MULTIPLE_PRECISION_INTEGRAL,  // Use gmf_t for the number
+		NONE                          // We've not resolved the numeric type
 	};
 
 	/*
@@ -87,25 +92,126 @@ public:
 		
 	};
 
-	JsonValue( Type type = Type::undefined ) noexcept;
-	JsonValue( const JsonValue& other );
-	JsonValue( JsonValue&& other );
+	/**
+	 * Default constructor.
+	 * @param type Type to initialize the JsonValue to. [default: undefined]
+	 */
+	JsonValue( Type type = Type::undefined ) noexcept
+	{
+		_initPrimitiveVariables( type );
+	}
+
+	/**
+	 * Copy constructor.
+	 * @param other Const reference to the JsonValue to copy.
+	 */
+	JsonValue( const JsonValue& other )
+	{
+		mType = other.mType;
+		mValue = other.mValue;
+		mElements = other.mElements;
+		mMembers = other.mMembers;
+		mBoolean = other.mBoolean;
+		mNumericType = other.mNumericType;
+
+		switch ( mNumericType )
+		{
+		case eNumberType::FLOATING:
+		case eNumberType::SIGNED_INTEGRAL:
+		case eNumberType::UNSIGNED_INTEGRAL:
+			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+			break;
+#ifdef USE_GMP
+		case eNumberType::MULTIPLE_PRECISION_FLOAT:
+			mpf_init_set( mMPFloatValue, other.mMPFloatValue );
+			break;
+		case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+			mpz_init_set( mMPIntegralValue, other.mMPIntegralValue );
+			break;
+#endif
+		default:
+			std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
+			break;
+		}
+	}
+
+	/**
+	 * Move constructor.
+	 * @param other R-Value of the JsonValue to move to this instance.
+	 */
+	JsonValue( JsonValue&& other )
+	{
+		mType = std::exchange( other.mType, Type::undefined );
+		mValue = std::move( other.mValue );
+		mElements = std::move( other.mElements );
+		mMembers = std::move( other.mMembers );
+		mBoolean = std::exchange( other.mBoolean, false );
+		mNumericType = std::exchange( other.mNumericType, eNumberType::NONE );
+		std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+		std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
+	}
+
 	JsonValue( const ObjectType& object );
 	JsonValue( ObjectType&& object );
 	JsonValue( const ArrayType& array );
 	JsonValue( ArrayType&& array );
 	JsonValue( const std::string& string );
 	JsonValue( std::string&& string );
-	JsonValue( bool boolean );
+
+	/**
+	 * Boolean initialization constructor.
+	 * @param boolean Boolean value to initialize the JsonValue to.
+	 */
+	JsonValue( bool boolean )
+	{
+		_initPrimitiveVariables( Type::boolean );
+		mBoolean = boolean;
+	}
+
+	/**
+	 * Arithmetic number initialization constructor.
+	 * @param arithmeticValue An arithmetic number to initialize the JsonValue with.
+	 */
 	template < typename ArithmeticType,
 		typename = typename std::enable_if< std::is_arthmetic< ArithmeticType >::value >::type >
-	JsonValue( ArithmeticType arithmeticValue );
-#if USE_GMP
+	JsonValue( ArithmeticType arithmeticValue )
+	{
+		_initPrimitiveVariables( Type::number );
+
+		if ( std::is_floating_point< ArithmeticType >::value )
+		{
+			mFloatValue = arithmeticValue;
+		}
+		else if ( std::is_unsigned< ArithmeticType >::value )
+		{
+			mUnsignedIntegral = arithmeticValue;
+		}
+		else
+		{
+			mSignedIntegral = arithmeticValue;
+		}
+	}
+
+#ifdef USE_GMP
 	JsonValue( mpz_t multiplePrecisionIntegral );
 	JsonValue( mpf_t multiplePrecisionFloat );
 #endif
-	JsonValue( std::nullptr_t );
-	~JsonValue();
+
+	/**
+	 * Null initialization constructor.
+	 */
+	JsonValue( std::nullptr_t )
+	{
+		_initPrimitiveVariables( Type::null );
+	}
+
+	/**
+	 * Destructor.
+	 */
+	~JsonValue()
+	{
+		this->clear();
+	}
 
 	iterator begin();
 
@@ -115,11 +221,25 @@ public:
 	 */
 	void clear() noexcept
 	{
-		mNumericType = eNumberType::NONE;
+#ifdef USE_GMP
+		switch ( mNumericType )
+		{
+		case eNumberType::MULTIPLE_PRECISION_FLOAT:
+			mpf_clear( mMPFloatValue );
+			break;
+		case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+			mpz_clear( mMPIntegralValue );
+			break;
+		}
+#endif
+
+		mType = Type::undefined;
+		mValue.clear();
 		mElements.clear();
 		mMembers.clear();
-		mValue.clear();
-		mType = Type::undefined;
+		mBoolean = false;
+		mNumericType = eNumberType::NONE;
+		std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
 	}
 
 	void dump( FILE* jsonFile, Indent indent = Indent::NONE, size_t indentLevel = 0 ) const;
@@ -191,7 +311,46 @@ public:
 		this->parse( jsonString );
 	}
 
-	JsonValue& operator=( const JsonValue& other );
+	/**
+	 * Copy assignment operator.
+	 * @param other Const reference to the JsonValue to copy.
+	 * @return Reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( const JsonValue& other )
+	{
+		if ( *this != other )
+		{
+			mType = other.mType;
+			mValue = other.mValue;
+			mElements = other.mElements;
+			mMembers = other.mMembers;
+			mBoolean = other.mBoolean;
+			mNumericType = other.mNumericType;
+
+			switch ( mNumericType )
+			{
+			case eNumberType::FLOATING:
+			case eNumberType::SIGNED_INTEGRAL:
+			case eNumberType::UNSIGNED_INTEGRAL:
+				std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+				break;
+#ifdef USE_GMP
+			case eNumberType::MULTIPLE_PRECISION_FLOAT:
+				mpf_init_set( mMPFloatValue, other.mMPFloatValue );
+				break;
+			case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+				mpz_init_set( mMPIntegralValue, other.mMPIntegralValue );
+				break;
+#endif
+			default:
+				std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
+				break;
+			}
+		}
+
+		return *this;
+	}
+
 	JsonValue& operator=( JsonValue&& other );
 	JsonValue& operator=( const ObjectType& object );
 	JsonValue& operator=( ObjectType&& object );
@@ -206,14 +365,60 @@ public:
 	JsonValue& operator=( mpz_t multiplePrecisionIntegral );
 	JsonValue& operator=( mpf_t multiplePrecitionFloat );
 #endif
-	JsonValue& operator=( bool boolean );
-	JsonValue& operator=( std::nullptr_t );
+
+	/**
+	 * Boolean assignment operator.
+	 * @param boolean Boolean value to assign to this JsonValue.
+	 * @return Return reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( bool boolean )
+	{
+		this->clear();
+		mType = Type::boolean;
+		mBoolean = boolean;
+
+		return *this;
+	}
+
+	/**
+	 * Null assignment operator.
+	 * @return Return reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( std::nullptr_t )
+	{
+		this->clear();
+		mType = Type::null;
+
+		return *this;
+	}
 
 	bool operator==( const JsonValue& other ) const noexcept;
 	bool operator!=( const JsonValue& other ) const noexcept;
 
-	JsonValue& operator[]( const char* const key );
-	JsonValue& operator[]( const std::string& key );
+	/**
+	 * Member access for object type JsonValue instances.
+	 * @param key Member key
+	 * @return Reference to the member JsonValue.
+	 */
+	JsonValue& operator[]( const char* const key )
+	{
+		if ( nullptr == key )
+		{
+			throw std::invalid_argument( "Key may not be null" );
+		}
+
+		return this->operator[]( std::string( key ) );
+	}
+
+	/**
+	 * Member access for object type JsonValue instances.
+	 * @param key String value of the 
+	 */
+	JsonValue& operator[]( const std::string& key )
+	{
+		return this->operator[]( key.c_str() );
+	}
+
 	template < typename IntegralType,
 		typename = typename std::enable_if< std::is_integral< IntegralType >::value >::type >
 	JsonValue& operator[]( IntegralType index );
@@ -298,6 +503,15 @@ public:
 	}
 
 private:
+
+	void _initPrimitiveVariables( Type type )
+	{
+		mType = type;
+		mBoolean = false;
+		mNumericType = eNumberType::NONE;
+		std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
+	}
+
 	const std::string& _getTypeString() const
 	{
 		static const std::map< JsonValue::Type, std::string > TYPE_STRING_MAP
@@ -314,9 +528,21 @@ private:
 		return TYPE_STRING_MAP.at( mType );
 	}
 
-	Type mType;
-	eNumberType mNumericType;
-	std::string mValue;
-	ArrayType mElements;
-	ObjectType mMembers;
+	union
+	{
+		long double mFloatValue;      // The parsed number is floating.
+		intmax_t mSignedIntegral;     // The parsed number is signed.
+		uintmax_t mUnsignedIntegral;  // The parsed number is unsigned.
+#ifdef USE_GMP
+		mpz_t mMPIntegralValue;      // Store the number as a multi-precision integral.
+		mpf_t mMPFloatValue;         // Store the number as a multi-precision floating.
+#endif
+	}
+	mNumericValue;             // Anonymous union for holding numeric values.
+	Type mType;                // Type of this JsonValue.
+	eNumberType mNumericType;  // The best representation of mValue.
+	std::string mValue;        // Variable for holding string, non-mp numbers.
+	ArrayType mElements;       // Array of JsonValues.
+	ObjectType mMembers;       // Mapping of JsonValues.
+	bool mBoolean;             // Store the boolean value here.
 };
