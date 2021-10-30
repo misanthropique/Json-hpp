@@ -151,12 +151,65 @@ public:
 		std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
 	}
 
-	JsonValue( const ObjectType& object );
-	JsonValue( ObjectType&& object );
-	JsonValue( const ArrayType& array );
-	JsonValue( ArrayType&& array );
-	JsonValue( const std::string& string );
-	JsonValue( std::string&& string );
+	/**
+	 * Object copy initialization constructor.
+	 * @param object Const reference to an ObjectType to initialize the JsonValue to.
+	 */
+	JsonValue( const ObjectType& object )
+	{
+		_initPrimitiveVariables( Type::object );
+		mMembers = object;
+	}
+
+	/**
+	 * Object move initialization constructor.
+	 * @param object R-Value to an ObjectType to initialize the JsonValue to.
+	 */
+	JsonValue( ObjectType&& object )
+	{
+		_initPrimitiveVariables( Type::object );
+		mMembers = std::move( object );
+	}
+
+	/**
+	 * Array copy initialization constructor.
+	 * @param array Const reference to an ArrayType to initialize the JsonValue to.
+	 */
+	JsonValue( const ArrayType& array )
+	{
+		_initPrimitiveVariables( Type::array );
+		mElements = array;
+	}
+
+	/**
+	 * Array move initialization constructor.
+	 * @param array R-Value to an ArrayType to initialize the JsonValue to.
+	 */
+	JsonValue( ArrayType&& array )
+	{
+		_initPrimitiveVariables( Type::array );
+		mElements = std::move( array );
+	}
+
+	/**
+	 * String copy initialization constructor.
+	 * @param string Const reference to a string to initialize the JsonValue to.
+	 */
+	JsonValue( const std::string& string )
+	{
+		_initPrimitiveVariables( Type::string );
+		mValue = string;
+	}
+
+	/**
+	 * String move initialization constructor.
+	 * @param string R-Value to a string to initialize the JsonValue to.
+	 */
+	JsonValue( std::string&& string )
+	{
+		_initPrimitiveVariables( Type::string );
+		mValue = std::move( string );
+	}
 
 	/**
 	 * Boolean initialization constructor.
@@ -180,21 +233,38 @@ public:
 
 		if ( std::is_floating_point< ArithmeticType >::value )
 		{
-			mFloatValue = arithmeticValue;
+			mNumericValue.floatValue = arithmeticValue;
 		}
 		else if ( std::is_unsigned< ArithmeticType >::value )
 		{
-			mUnsignedIntegral = arithmeticValue;
+			mNumericValue.unsignedIntegral = arithmeticValue;
 		}
 		else
 		{
-			mSignedIntegral = arithmeticValue;
+			mNumericValue.signedIntegral = arithmeticValue;
 		}
 	}
 
 #ifdef USE_GMP
-	JsonValue( mpz_t multiplePrecisionIntegral );
-	JsonValue( mpf_t multiplePrecisionFloat );
+	/**
+	 * Multiple precision integral copy initialization constructor.
+	 * @param array Const reference to an ArrayType to initialize the JsonValue to.
+	 */
+	JsonValue( mpz_t multiplePrecisionIntegral )
+	{
+		_initPrimitiveVariables( Type::number );
+		mpz_init_set( mNumericValue.MPIntegralValue, multiplePrecisionIntegral );
+	}
+
+	/**
+	 * Multiple precision floating copy initialization constructor.
+	 * @param array Const reference to an ArrayType to initialize the JsonValue to.
+	 */
+	JsonValue( mpf_t multiplePrecisionFloat )
+	{
+		_initPrimitiveVariables( Type::number );
+		mpf_init_set( mNumericValue.MPFloatValue, multiplePrecisionFloat );
+	}
 #endif
 
 	/**
@@ -530,12 +600,12 @@ private:
 
 	union
 	{
-		long double mFloatValue;      // The parsed number is floating.
-		intmax_t mSignedIntegral;     // The parsed number is signed.
-		uintmax_t mUnsignedIntegral;  // The parsed number is unsigned.
+		long double floatValue;      // The parsed number is floating.
+		intmax_t signedIntegral;     // The parsed number is signed.
+		uintmax_t unsignedIntegral;  // The parsed number is unsigned.
 #ifdef USE_GMP
-		mpz_t mMPIntegralValue;      // Store the number as a multi-precision integral.
-		mpf_t mMPFloatValue;         // Store the number as a multi-precision floating.
+		mpz_t MPIntegralValue;      // Store the number as a multi-precision integral.
+		mpf_t MPFloatValue;         // Store the number as a multi-precision floating.
 #endif
 	}
 	mNumericValue;             // Anonymous union for holding numeric values.
