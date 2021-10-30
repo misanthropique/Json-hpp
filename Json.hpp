@@ -317,9 +317,51 @@ public:
 		std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
 	}
 
-	void dump( FILE* jsonFile, Indent indent = Indent::NONE, size_t indentLevel = 0 ) const;
-	void dump( std::ofstream& jsonOFStream, Indent indent = Indent::NONE, size_t indentLevel = 0 ) const;
-	void dumps( std::string& jsonString, Indent indent = Indent::NONE, size_t indentLevel = 0 ) const;
+	/**
+	 * Write the string representation of this JsonValue out to file.
+	 * By default, the dense representation is generated. If a beautified,
+	 * or human readable, version is desired, then the indent can be set to
+	 * use tabs or spaces. The indentLevel is by default set to 4 for spaces.
+	 * @param jsonFile Pointer to the FILE handle to write to.
+	 * @param indent The character to use for indentation. [default: Indent:NONE]
+	 * @param indentationLevel This parameter is only used if {@param indent} is set
+	 *                         to Indent::SPACE, in which case it is the number of space
+	 *                         characters used for each level of indentation. [default: 4]
+	 */
+	void dump( FILE* jsonFile, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
+	{
+	}
+
+	/**
+	 * Write the string representation of this JsonValue out to file.
+	 * By default, the dense representation is generated. If a beautified,
+	 * or human readable, version is desired, then the indent can be set to
+	 * use tabs or spaces. The indentLevel is by default set to 4 for spaces.
+	 * @param jsonOFStream Reference to the std::ofstream to write to.
+	 * @param indent The character to use for indentation. [default: Indent:NONE]
+	 * @param indentationLevel This parameter is only used if {@param indent} is set
+	 *                         to Indent::SPACE, in which case it is the number of space
+	 *                         characters used for each level of indentation. [default: 4]
+	 */
+	void dump( std::ofstream& jsonOFStream, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
+	{
+	}
+
+	/**
+	 * Write the string representation of this JsonValue out to file.
+	 * By default, the dense representation is generated. If a beautified,
+	 * or human readable, version is desired, then the indent can be set to
+	 * use tabs or spaces. The indentLevel is by default set to 4 for spaces.
+	 * @param jsonString Reference to the std::string to write to.
+	 * @param indent The character to use for indentation. [default: Indent:NONE]
+	 * @param indentationLevel This parameter is only used if {@param indent} is set
+	 *                         to Indent::SPACE, in which case it is the number of space
+	 *                         characters used for each level of indentation. [default: 4]
+	 */
+	void dumps( std::string& jsonString, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
+	{
+		jsonString = this->stringify( indent, indentLevel );
+	}
 
 	iterator end();
 
@@ -647,7 +689,7 @@ public:
 
 	/**
 	 * Member access for object type JsonValue instances.
-	 * @param key Member key
+	 * @param key Pointer to a const char
 	 * @return Reference to the member JsonValue.
 	 */
 	JsonValue& operator[]( const char* const key )
@@ -661,22 +703,91 @@ public:
 	}
 
 	/**
-	 * Member access for object type JsonValue instances.
-	 * @param key String value of the 
+	 * Mutable member access for object type JsonValue instances.
+	 * If the key is not present, then the member is added.
+	 * @param key Const reference to a std::string.
+	 * @return Reference to the member JsonValue.
 	 */
 	JsonValue& operator[]( const std::string& key )
 	{
-		return this->operator[]( key.c_str() );
+		return mMembers[ key ];
 	}
 
+	/**
+	 * Mutable element access for array JSON values.
+	 * If the index is positive and exceeds the size, then the array is filled
+	 * with undefined elements up to the new index. Negative indices may not
+	 * exceed the size of the array.
+	 * @param index Index into the array.
+	 * @return Reference to the element JsonValue.
+	 * @throw std::out_of_range is thrown if the index is negative and exceeds the range.
+	 */
 	template < typename IntegralType,
 		typename = typename std::enable_if< std::is_integral< IntegralType >::value >::type >
-	JsonValue& operator[]( IntegralType index );
+	JsonValue& operator[]( IntegralType index )
+	{
+		size_t absoluteIndex;
+
+		// Convert the given index into an absolute offset
+		// from the beginning of the elements array.
+		if ( std::is_signed< IntegralType >::value )
+		{
+			if ( index < 0 )
+			{
+				absoluteIndex = size_t( -index );
+				if ( mElements.size() < absoluteIndex )
+				{
+					throw std::out_of_range( "Negative indices may not exceed the length of the array." );
+				}
+
+				absoluteIndex = mElments.size() - absoluteIndex;
+			}
+			else
+			{
+				absoluteIndex = size_t( index );
+			}
+		}
+		else
+		{
+			absoluteIndex = size_t( index );
+		}
+
+		// Fill in the difference with undefined JSON values.
+		if ( absoluteIndex <= mElements.size() )
+		{
+			mElements.resize( absoluteIndex + 1 );
+		}
+
+		return mElements[ absoluteIndex ];
+	}
+
 	JsonValue& operator[]( const char* const key ) const;
 	JsonValue& operator[]( const std::string& key ) const;
+
+	/**
+	 * Immutable element access for array JSON values.
+	 * If the index exceeds the bounds 
+	 * If the index is positive and exceeds the size, then the array is filled
+	 * with undefined elements up to the new index. Negative indices may not
+	 * exceed the size of the array.
+	 * @param index Index into the array.
+	 * @return Reference to the element JsonValue.
+	 */
 	template < typename IntegralType,
 		typename = typename std::enable_if< std::is_integral< IntegralType >::value >::type >
-	JsonValue& operator[]( IntegralType index ) const;
+	JsonValue& operator[]( IntegralType index ) const
+	{
+		size_t absoluteIndex;
+
+		if ( std::is_signed< IntegralType >::value )
+		{
+		}
+		else
+		{
+		}
+
+		return mElements.at( absoluteIndex );
+	}
 
 	operator bool() const;
 	operator std::string() const;
