@@ -233,14 +233,17 @@ public:
 
 		if ( std::is_floating_point< ArithmeticType >::value )
 		{
+			mNumericType = eNumberType::FLOATING;
 			mNumericValue.floatValue = arithmeticValue;
 		}
 		else if ( std::is_unsigned< ArithmeticType >::value )
 		{
+			mNumericType = eNumberType::UNSIGNED_INTEGRAL;
 			mNumericValue.unsignedIntegral = arithmeticValue;
 		}
 		else
 		{
+			mNumericType = eNumberType::SIGNED_INTEGRAL;
 			mNumericValue.signedIntegral = arithmeticValue;
 		}
 	}
@@ -253,6 +256,7 @@ public:
 	JsonValue( mpz_t multiplePrecisionIntegral )
 	{
 		_initPrimitiveVariables( Type::number );
+		mNumericType = eNumberType::MULTIPLE_PRECISION_INTEGRAL;
 		mpz_init_set( mNumericValue.MPIntegralValue, multiplePrecisionIntegral );
 	}
 
@@ -263,6 +267,7 @@ public:
 	JsonValue( mpf_t multiplePrecisionFloat )
 	{
 		_initPrimitiveVariables( Type::number );
+		mNumericType = eNumberType::MULTIPLE_PRECISION_FLOAT;
 		mpf_init_set( mNumericValue.MPFloatValue, multiplePrecisionFloat );
 	}
 #endif
@@ -390,6 +395,8 @@ public:
 	{
 		if ( *this != other )
 		{
+			this->clear();
+
 			mType = other.mType;
 			mValue = other.mValue;
 			mElements = other.mElements;
@@ -421,19 +428,175 @@ public:
 		return *this;
 	}
 
-	JsonValue& operator=( JsonValue&& other );
-	JsonValue& operator=( const ObjectType& object );
-	JsonValue& operator=( ObjectType&& object );
-	JsonValue& operator=( const ArrayType& array );
-	JsonValue& operator=( ArrayType&& array );
-	JsonValue& operator=( const std::string& string );
-	JsonValue& operator=( std::string&& string );
+	/**
+	 * Move assignment operator.
+	 * @param other R-Value to the JsonValue to move.
+	 * @return Reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( JsonValue&& other )
+	{
+		if ( *this != other )
+		{
+			this->clear();
+
+			mType = std::exchange( other.mType, Type::undefined );
+			mValue = std::move( other.mValue );
+			mElements = std::move( other.mElements );
+			mMembers = std::move( other.mMembers );
+			mBoolean = std::exchange( other.mBoolean, false );
+			mNumericType = std::exchange( other.mNumericType, eNumberType::NONE );
+
+			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+			std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
+		}
+
+		return *this;
+	}
+
+	/**
+	 * Object copy assignment operator.
+	 * @param object Const reference to an object to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( const ObjectType& object )
+	{
+		this->clear();
+		mType = Type::object;
+		mMembers = object;
+
+		return *this;
+	}
+
+	/**
+	 * Object move assignment operator.
+	 * @param object R-Value to an object to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( ObjectType&& object )
+	{
+		this->clear();
+		mType = Type::object;
+		mMembers = std::move( object );
+
+		return *this;
+	}
+
+	/**
+	 * Array copy assignment operator.
+	 * @param array R-Value to an array to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( const ArrayType& array )
+	{
+		this->clear();
+		mType = Type::array;
+		mElements = array;
+
+		return *this;
+	}
+
+	/**
+	 * Array copy assignment operator.
+	 * @param array R-Value to an array to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( ArrayType&& array )
+	{
+		this->clear();
+		mType = Type::array;
+		mElements = std::move( array );
+
+		return *this;
+	}
+
+	/**
+	 * String copy assignment operator.
+	 * @param string Const reference to a string to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( const std::string& string )
+	{
+		this->clear();
+		mType = Type::string;
+		mValue = string;
+
+		return *this;
+	}
+
+	/**
+	 * String move assignment operator.
+	 * @param string R-Value to a string to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
+	JsonValue& operator=( std::string&& string )
+	{
+		this->clear();
+		mType = Type::string;
+		mValue = std::move( string );
+
+		return *this;
+	}
+
+	/**
+	 * Numeric assignment operator.
+	 * @param arithmeticValue Arithmetic number to assign to this JsonValue.
+	 * @return Reference to this JsonValue instance is returned.
+	 */
 	template < typename ArithmeticType,
 		typename = typename std::enable_if< std::is_arithmetic< ArithmeticType >::value >::type >
-	JsonValue& operator=( ArithmeticType arithmeticValue );
+	JsonValue& operator=( ArithmeticType arithmeticValue )
+	{
+		this->clear();
+		mType = Type::number;
+		if ( std::is_floating_point< ArithmeticType >::value )
+		{
+			mNumericType = eNumberType::FLOATING;
+			mNumericValue.floatValue = arithmeticValue;
+		}
+		else if ( std::is_unsigned< ArithmeticType >::value )
+		{
+			mNumericType = eNumberType::UNSIGNED_INTEGRAL;
+			mNumericValue.unsignedIntegral = arithmeticValue;
+		}
+		else
+		{
+			mNumericType = eNumberType::SIGNED_INTEGRAL;
+			mNumericValue.signedIntegral = arithmeticValue;
+		}
+
+		return *this;
+	}
+
 #ifdef USE_GMP
-	JsonValue& operator=( mpz_t multiplePrecisionIntegral );
-	JsonValue& operator=( mpf_t multiplePrecitionFloat );
+	/**
+	 * Multiple precision integral numeric assignment operator.
+	 * @param multiplePrecisionIntegral mpz_t object.
+	 * @return Return reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( mpz_t multiplePrecisionIntegral )
+	{
+		this->clear();
+		mType = Type::number;
+		mNumericType = eNumberType::MULTIPLE_PRECISION_INTEGRAL;
+		mpz_init_set( mNumericValue.MPIntegralValue, multiplePrecisionIntegral );
+
+		return *this;
+	}
+
+	/**
+	 * Multiple precision float numeric assignment operator.
+	 * @param multiplePrecisionFloat mpf_t object.
+	 * @return Return reference to this JsonValue instance.
+	 */
+	JsonValue& operator=( mpf_t multiplePrecitionFloat )
+	{
+		this->clear();
+		mType = Type::number;
+		mNumericType = eNumberType::MULTIPLE_PRECISION_FLOAT;
+		mpf_init_set( mNumericValue.MPFloatValue, multiplePrecisionFloat );
+
+		return *this;
+	}
 #endif
 
 	/**
