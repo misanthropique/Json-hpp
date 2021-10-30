@@ -373,11 +373,28 @@ public:
 		throw std::runtime_error( "Operation 'keys()' is not defined for non-object type" );
 	}
 
-	void load( FILE* jsonFile );
-	void load( std::ifstream& jsonIFStream );
+	/**
+	 * Parse a JsonValue from the given FILE and assign to this instance.
+	 * @param jsonFile Pointer to a FILE handle from whence to read the JSON from.
+	 * @throw ParseError is thrown if there is a parsing error.
+	 */
+	void load( FILE* jsonFile )
+	{
+		this->parse( jsonIFStream );
+	}
 
 	/**
-	 * Parse a JsonValue from the given string an assign to this instance.
+	 * Parse a JsonValue from the the given std::ifstream and assign to this instance.
+	 * @param jsonIFStream Reference to a std::ifstream from whence to read the JSON from.
+	 * @throw ParseError is thrown if there is a parsing error.
+	 */
+	void load( std::ifstream& jsonIFStream )
+	{
+		this->parse( jsonIFStream );
+	}
+
+	/**
+	 * Parse a JsonValue from the given string and assign to this instance.
 	 * @param jsonString A string object containing the JSON to be parsed.
 	 * @throw ParseError is thrown if there is a parsing error.
 	 */
