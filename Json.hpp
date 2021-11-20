@@ -732,7 +732,7 @@ public:
 		// from the beginning of the elements array.
 		if ( std::is_signed< IntegralType >::value )
 		{
-			if ( index < 0 )
+			if ( index < IntegralType( 0 ) )
 			{
 				absoluteIndex = size_t( -index );
 				if ( mElements.size() < absoluteIndex )
@@ -781,9 +781,24 @@ public:
 
 		if ( std::is_signed< IntegralType >::value )
 		{
+			if ( index < IntegralType( 0 ) )
+			{
+				absoluteIndex = size_t( -index );
+				if ( mElements.size() < absoluteIndex )
+				{
+					throw std::out_of_range( "Negative indices may not exceed the length of the array." );
+				}
+
+				absoluteIndex = mElments.size() - absoluteIndex;
+			}
+			else
+			{
+				absoluteIndex = size_t( index );
+			}
 		}
 		else
 		{
+			absoluteIndex = size_t( index );
 		}
 
 		return mElements.at( absoluteIndex );
