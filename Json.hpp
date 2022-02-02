@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -58,6 +59,8 @@ private:
 	 * Useful state information when parsing
 	 * and for providing informative error messages.
 	 */
+	// We will need to upgrade this struct to a full subclass
+	// to accomidate the changes needed for std::ifstream and FILE
 	struct sParseFrame
 	{
 		const char* beginPointer = nullptr;
@@ -973,4 +976,212 @@ private:
 	ArrayType mElements;       // Array of JsonValues.
 	ObjectType mMembers;       // Mapping of JsonValues.
 	bool mBoolean;             // Store the boolean value here.
+
+	void _parseWhitespace( struct sParseFrame& frame )
+	{
+		const char STRING_WHITESPACE[] = " \r\n\t";
+		for ( const char*& current = frame.currentPointer;
+			( current != frame.endPointer )
+				and ( nullptr != strchr( STRING_WHITESPACE, *current ) );
+			++current );
+	}
+
+	void _parseString( struct sParseFrame& frame )
+	{
+		const char STRING_ESCAPE_CHARACTER[] = "\"\\/bfnrtu";
+		if ( '"' != *frame.currentPointer )
+		{
+			throw ParseError( "parseString", frame.currentPointer, frame );
+		}
+
+		const char* stringPointer = ++frame.currentPointer;
+
+		while ( ( stringPointer != frame.endPointer ) and ( '"' != *stringPointer ) )
+		{
+			if ( '\\' == *stringPointer )
+			{
+				++stringPointer;
+
+				if ( nullptr == strchr( STRING_ESCAPE_CHARACTER, *stringPointer ) )
+				{
+					throw ParseError( "parseString", stringPointer, frame );
+				}
+
+				if ( 'u' == *stringPointer )
+				{
+					if ( not ( isxdigit( stringPointer[ 1 ] ) and isxdigit( stringPointer[ 2 ] )
+							and isxdigit( stringPointer[ 3 ] ) and isxdigit( stringPointer[ 4 ] ) ) )
+					{
+						throw ParseError( "parseString", stringPointer, frame );
+					}
+					else
+					{
+						stringPointer += 5;
+					}
+				}
+				else
+				{
+					++stringPointer;
+				}
+			}
+			else if ( ( '\0' <= *stringPointer ) and ( ' ' > *stringPointer ) )
+			{
+				throw ParseError( "parseString", stringPointer, frame );
+			}
+			else
+			{
+				++stringPointer;
+			}
+		}
+
+		if ( '"' != *stringPointer )
+		{
+			throw ParseError( "parseString", stringPointer, frame );
+		}
+
+		size_t stringLength = stringPointer - frame.currentPointer;
+		mStringValue.assign( frame.currentPointer, stringLength );
+		frame.currentPointer = stringPointer + 1;
+		mType = Type::string;
+	}
+
+	void _parseNumber( struct sParseFrame& frame )
+	{
+		// TODO: Implement
+	}
+
+	void _parseArray( struct sParseFrame& frame )
+	{
+		const char*& current = frame.currentPointer;
+
+		if ( '[' != *current )
+		{
+			throw ParseError( "parseArray", current, frame );
+		}
+
+		++current;
+		_parseWhitespace( frame );
+		while ( ( current != frame.endPointer ) and ( ']' != *current ) )
+		{
+			mElements.push_back( JsonValue( Type::undefined, frame ) );
+
+			if ( ',' == *current )
+			{
+				++current;
+			}
+			else if ( ']' != *current )
+			{
+				throw ParseError( "parseArray", current, frame );
+			}
+		}
+
+		if ( ']' != *current )
+		{
+			++current;
+			throw ParseError( "parseArray", current, frame );
+		}
+		else
+		{
+			++current;
+		}
+
+		mType = Type::array;
+	}
+
+	void _parseObject( struct sParseFrame& frame )
+	{
+		const char*& current = frame.currentPointer;
+
+		if ( '{' != *current )
+		{
+			throw ParseError( "parseObject", current, frame );
+		}
+
+		++current;
+		_parseWhitespace( frame );
+		while ( ( current != frame.endPointer ) and ( '}' != *current ) )
+		{
+			JsonValue key( Type::string, frame );
+
+			if ( ':' != *current )
+			{
+				throw ParseError( "parseObject", current, frame );
+			}
+
+			++current;
+			mMembers[ std::string( key ) ] = JsonValue( Type::undefined, frame );
+
+			if ( ',' == *current )
+			{
+				++current;
+			}
+			else if ( '}' != *current )
+			{
+				throw ParseError( "parseObject", current, frame );
+			}
+		}
+
+		if ( '}' != *current )
+		{
+			++current;
+			throw ParseError( "parseObject", current, frame );
+		}
+		else
+		{
+			++current;
+		}
+
+		mType = Type::object;
+	}
+
+	void _parseValue( struct sParseFrame& frame )
+	{
+		const char STRING_TRUE[] = "true";
+		const char STRING_FALSE[] = "false";
+		const char STRING_NULL[] = "null";
+
+		_parseWhitespace( frame );
+
+		const char*& current = frame.currentPointer;
+
+		if ( '"' == *current )
+		{
+			_parseString( frame );
+		}
+		else if ( ( '-' == *current ) or isdigit( *current ) )
+		{
+			_parseNumber( frame );
+		}
+		else if ( '{' == *current )
+		{
+			_parseObject( frame );
+		}
+		else if ( '[' == *current )
+		{
+			_parseArray( frame );
+		}
+		else if ( 0 == strncmp( STRING_TRUE, current, strlen( STRING_TRUE ) ) )
+		{
+			mType = Type::boolean;
+			mBoolean = true;
+			current += strlen( STRING_TRUE );
+		}
+		else if ( 0 == strncmp( STRING_FALSE, current, strlen( STRING_FALSE ) ) )
+		{
+			mType = Type::boolean;
+			mBoolean = false;
+			current += strlen( STRING_TRUE );
+		}
+		else if ( 0 == strncmp( STRING_NULL, current, strlen( STRING_NULL ) ) )
+		{
+			mType = Type::null;
+			current += strlen( STRING_NULL );
+		}
+		else
+		{
+			throw ParseError( "parseValue", current, frame );
+		}
+
+		_parseWhitespace( frame );
+	}
 };
