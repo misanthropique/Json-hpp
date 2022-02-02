@@ -108,7 +108,7 @@ public:
 	JsonValue( const JsonValue& other )
 	{
 		mType = other.mType;
-		mValue = other.mValue;
+		mStringValue = other.mStringValue;
 		mElements = other.mElements;
 		mMembers = other.mMembers;
 		mBoolean = other.mBoolean;
@@ -142,7 +142,7 @@ public:
 	JsonValue( JsonValue&& other )
 	{
 		mType = std::exchange( other.mType, Type::undefined );
-		mValue = std::move( other.mValue );
+		mStringValue = std::move( other.mStringValue );
 		mElements = std::move( other.mElements );
 		mMembers = std::move( other.mMembers );
 		mBoolean = std::exchange( other.mBoolean, false );
@@ -198,7 +198,7 @@ public:
 	JsonValue( const std::string& string )
 	{
 		_initPrimitiveVariables( Type::string );
-		mValue = string;
+		mStringValue = string;
 	}
 
 	/**
@@ -208,7 +208,7 @@ public:
 	JsonValue( std::string&& string )
 	{
 		_initPrimitiveVariables( Type::string );
-		mValue = std::move( string );
+		mStringValue = std::move( string );
 	}
 
 	/**
@@ -309,7 +309,7 @@ public:
 #endif
 
 		mType = Type::undefined;
-		mValue.clear();
+		mStringValue.clear();
 		mElements.clear();
 		mMembers.clear();
 		mBoolean = false;
@@ -401,6 +401,7 @@ public:
 		if ( Type::object == mType )
 		{
 			std::vector< std::string > memberKeys( mMembers.size() );
+
 			std::transform(
 				mMembers.begin(), mMembers.end(),
 				std::back_inserter( memberKeys ),
@@ -409,6 +410,7 @@ public:
 					return keyValuePair.first;
 				}
 			);
+
 			return objectKeys;
 		}
 
@@ -457,7 +459,7 @@ public:
 			this->clear();
 
 			mType = other.mType;
-			mValue = other.mValue;
+			mStringValue = other.mStringValue;
 			mElements = other.mElements;
 			mMembers = other.mMembers;
 			mBoolean = other.mBoolean;
@@ -499,7 +501,7 @@ public:
 			this->clear();
 
 			mType = std::exchange( other.mType, Type::undefined );
-			mValue = std::move( other.mValue );
+			mStringValue = std::move( other.mStringValue );
 			mElements = std::move( other.mElements );
 			mMembers = std::move( other.mMembers );
 			mBoolean = std::exchange( other.mBoolean, false );
@@ -577,7 +579,7 @@ public:
 	{
 		this->clear();
 		mType = Type::string;
-		mValue = string;
+		mStringValue = string;
 
 		return *this;
 	}
@@ -591,7 +593,7 @@ public:
 	{
 		this->clear();
 		mType = Type::string;
-		mValue = std::move( string );
+		mStringValue = std::move( string );
 
 		return *this;
 	}
