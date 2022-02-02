@@ -804,7 +804,57 @@ public:
 		return mElements.at( absoluteIndex );
 	}
 
-	operator bool() const;
+	/**
+	 * Cast the value held by the JsonValue object to either true or false.
+	 * If the type is object or array, then true is returned. For string type,
+	 * true shall be returned if the string is non-zero in length. For number
+	 * type, if the value is non-zero, then true is returned else false.
+	 * For all other types, false is returned.
+	 */
+	operator bool() const
+	{
+		switch ( mType )
+		{
+			case Type::array:
+			case Type::object:
+				return true;
+
+			case Type::string:
+				return not mStringValue.empty();
+
+			case Type::number:
+				switch ( mNumericType )
+				{
+					case eNumberType::FLOATING:
+						return 0.0 != mNumericValue.floatValue;
+					case eNumberType::SIGNED_INTEGRAL:
+						return 0 != mNumericValue.signedIntegral;
+					case eNumberType::UNSIGNED_INTEGRAL:
+						return 0 != mNumericValue.unsignedIntegral;
+#ifdef USE_GMP
+					case eNumberType::MULTIPLE_PRECISION_FLOAT:
+						return 0 != mpf_sgn( mNumericValue.MPFloatValue );
+					case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+						return 0 != mpz_sgn( mNumericValue.MPIntegralValue );
+#endif
+					default:
+						return false;
+				}
+
+				// If we get to here, then the JsonValue
+				// is clearly in an invalid state.
+				return false;
+
+			case Type::boolean:
+				return mBoolean;
+
+			default:
+				return false;
+		}
+
+		return false;
+	}
+
 	operator std::string() const;
 	template < typename ArithmeticType,
 		typename = typename std::enable_if< std::is_arithmetic< ArithmeticType >::value >::type >
@@ -838,7 +888,7 @@ public:
 			return mElements.size();
 
 		case Type::string:
-			return mValue.size();
+			return mStringValue.size();
 		}
 
 		throw std::runtime_error( "Operation 'size()' is not defined for type: " + _getTypeString() );
@@ -917,7 +967,7 @@ private:
 	mNumericValue;             // Anonymous union for holding numeric values.
 	Type mType;                // Type of this JsonValue.
 	eNumberType mNumericType;  // The best representation of mValue.
-	std::string mValue;        // Variable for holding string, non-mp numbers.
+	std::string mStringValue;  // Variable for holding string, non-mp numbers.
 	ArrayType mElements;       // Array of JsonValues.
 	ObjectType mMembers;       // Mapping of JsonValues.
 	bool mBoolean;             // Store the boolean value here.
