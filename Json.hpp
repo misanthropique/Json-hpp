@@ -66,6 +66,47 @@ private:
 		const char* beginPointer = nullptr;
 		const char* currentPointer = nullptr;
 		const char* endPointer = nullptr;
+
+		// Copy from the current position into {destination} for {length} bytes
+		void copy( std::string& destination, size_t length )
+		{
+			destination.clear();
+
+			if ( 0 < length )
+			{
+				destination.assign( currentPointer, length );
+			}
+		}
+
+		// Check if we're at the end of the source
+		bool endOfStream() const
+		{
+			return currentPointer != endPointer;
+		}
+
+		// Peek at the character {offset} bytes from the current position. 
+		char peek( uint32_t offset = 0 ) const
+		{
+			return currentPointer[ offset ];
+		}
+
+		// Compare the given {string} of length {length} with the data starting at {currentPointer}
+		// Return true if they are equal, false otherwise.
+		bool strncmp( const char* const string, size_t length )
+		{
+			return 0 == strncmp( currentPointer, string, length );
+		}
+
+		// Update the current position by {offset} bytes
+		void update( uint32_t offset = 1 )
+		{
+			if ( 0 < offset )
+			{
+				currentPointer =
+					( ( currentPointer + offset ) <= endPointer )
+						? currentPointer + offset : endPointer;
+			}
+		}
 	};
 
 public:
@@ -977,163 +1018,166 @@ private:
 	ObjectType mMembers;       // Mapping of JsonValues.
 	bool mBoolean;             // Store the boolean value here.
 
+	// Just skip over any whitespace
 	void _parseWhitespace( struct sParseFrame& frame )
 	{
 		const char STRING_WHITESPACE[] = " \r\n\t";
-		for ( const char*& current = frame.currentPointer;
-			( current != frame.endPointer )
-				and ( nullptr != strchr( STRING_WHITESPACE, *current ) );
-			++current );
+		while ( ( not frame.endOfStream() )
+			and ( nullptr != strchr( STRING_WHITESPACE, frame.peek() ) ) )
+		{
+			frame.update();
+		}
 	}
 
+	// Parse a string
 	void _parseString( struct sParseFrame& frame )
 	{
 		const char STRING_ESCAPE_CHARACTER[] = "\"\\/bfnrtu";
-		if ( '"' != *frame.currentPointer )
+
+		if ( '"' != frame.peek() )
 		{
-			throw ParseError( "parseString", frame.currentPointer, frame );
+			throw ParseError( "parseString", frame );
 		}
 
-		const char* stringPointer = ++frame.currentPointer;
-
-		while ( ( stringPointer != frame.endPointer ) and ( '"' != *stringPointer ) )
+		frame.update();
+		uint32_t stringLength = 0;
+		while ( ( not frame.endOfStream() ) and ( '"' != frame.peek( stringLength ) ) )
 		{
-			if ( '\\' == *stringPointer )
+			if ( '\\' == frame.peek( stringLength ) )
 			{
-				++stringPointer;
+				++stringLength;
 
-				if ( nullptr == strchr( STRING_ESCAPE_CHARACTER, *stringPointer ) )
+				if ( nullptr == strchr( STRING_ESCAPE_CHARACTER, frame.peek( stringLength ) ) )
 				{
-					throw ParseError( "parseString", stringPointer, frame );
+					throw ParseError( "parseString", frame, stringLength );
 				}
 
-				if ( 'u' == *stringPointer )
+				if ( 'u' == frame.peek( stringLength ) )
 				{
-					if ( not ( isxdigit( stringPointer[ 1 ] ) and isxdigit( stringPointer[ 2 ] )
-							and isxdigit( stringPointer[ 3 ] ) and isxdigit( stringPointer[ 4 ] ) ) )
+					if ( isxdigit( frame.peek( stringLength + 1 ) ) and isxdigit( frame.peek( stringLength + 2 ) )
+						and isxdigit( frame.peek( stringLength + 3 ) ) and isxdigit( frame.peek( stringLength + 4 ) ) )
 					{
-						throw ParseError( "parseString", stringPointer, frame );
+						stringLength += 5;
 					}
 					else
 					{
-						stringPointer += 5;
+						throw ParseError( "parseString", frame, stringLength );
 					}
 				}
 				else
 				{
-					++stringPointer;
+					++stringLength;
 				}
 			}
-			else if ( ( '\0' <= *stringPointer ) and ( ' ' > *stringPointer ) )
+			else if ( ( '\0' <= frame.peek( stringLength ) ) and ( frame.peek( stringLength ) < ' ' ) )
 			{
-				throw ParseError( "parseString", stringPointer, frame );
+				throw ParseError( "parseString", frame, stringLength );
 			}
 			else
 			{
-				++stringPointer;
+				++stringLength;
 			}
 		}
 
-		if ( '"' != *stringPointer )
+		if ( '"' != frame.peek( stringLength ) )
 		{
-			throw ParseError( "parseString", stringPointer, frame );
+			throw ParseError( "parseString", frame, stringLength );
 		}
 
-		size_t stringLength = stringPointer - frame.currentPointer;
-		mStringValue.assign( frame.currentPointer, stringLength );
-		frame.currentPointer = stringPointer + 1;
+		frame.copy( mStringValue, stringLength );
+		frame.update( stringLength + 1 );
 		mType = Type::string;
 	}
 
+	// Parse a number
 	void _parseNumber( struct sParseFrame& frame )
 	{
 		// TODO: Implement
 	}
 
+	// Parse an array
 	void _parseArray( struct sParseFrame& frame )
 	{
-		const char*& current = frame.currentPointer;
-
-		if ( '[' != *current )
+		if ( '[' != frame.peek() )
 		{
-			throw ParseError( "parseArray", current, frame );
+			throw ParseError( "parseArray", frame );
 		}
 
-		++current;
+		frame.update();
 		_parseWhitespace( frame );
-		while ( ( current != frame.endPointer ) and ( ']' != *current ) )
+		while ( ( not frame.endOfStream() ) and ( ']' != frame.peek() ) )
 		{
 			mElements.push_back( JsonValue( Type::undefined, frame ) );
 
-			if ( ',' == *current )
+			if ( ',' == frame.peek() )
 			{
-				++current;
+				frame.update();
 			}
-			else if ( ']' != *current )
+			else if ( ']' != frame.peek() )
 			{
-				throw ParseError( "parseArray", current, frame );
+				throw ParseError( "parseArray", frame );
 			}
 		}
 
-		if ( ']' != *current )
+		if ( ']' != frame.peek() )
 		{
-			++current;
-			throw ParseError( "parseArray", current, frame );
+			frame.update();
+			throw ParseError( "parseArray", frame );
 		}
 		else
 		{
-			++current;
+			frame.update();
 		}
 
 		mType = Type::array;
 	}
 
+	// Parse an object
 	void _parseObject( struct sParseFrame& frame )
 	{
-		const char*& current = frame.currentPointer;
-
-		if ( '{' != *current )
+		if ( '{' != frame.peek() )
 		{
-			throw ParseError( "parseObject", current, frame );
+			throw ParseError( "parseObject", frame );
 		}
 
-		++current;
+		frame.update();
 		_parseWhitespace( frame );
-		while ( ( current != frame.endPointer ) and ( '}' != *current ) )
+		while ( ( not frame.endOfStream() ) and ( '}' != frame.peek() ) )
 		{
 			JsonValue key( Type::string, frame );
 
-			if ( ':' != *current )
+			if ( ':' != frame.peek() )
 			{
-				throw ParseError( "parseObject", current, frame );
+				throw ParseError( "parseObject", frame );
 			}
 
-			++current;
+			frame.update();
 			mMembers[ std::string( key ) ] = JsonValue( Type::undefined, frame );
 
-			if ( ',' == *current )
+			if ( ',' == frame.peek() )
 			{
-				++current;
+				frame.update();
 			}
-			else if ( '}' != *current )
+			else if ( '}' != frame.peek() )
 			{
-				throw ParseError( "parseObject", current, frame );
+				throw ParseError( "parseObject", frame );
 			}
 		}
 
-		if ( '}' != *current )
+		if ( '}' != frame.peek() )
 		{
-			++current;
-			throw ParseError( "parseObject", current, frame );
+			frame.update();
+			throw ParseError( "parseObject", frame );
 		}
 		else
 		{
-			++current;
+			frame.update();
 		}
 
 		mType = Type::object;
 	}
 
+	// Root of the parser
 	void _parseValue( struct sParseFrame& frame )
 	{
 		const char STRING_TRUE[] = "true";
@@ -1142,44 +1186,45 @@ private:
 
 		_parseWhitespace( frame );
 
-		const char*& current = frame.currentPointer;
-
-		if ( '"' == *current )
+		if ( '"' == frame.peek() )
 		{
 			_parseString( frame );
 		}
-		else if ( ( '-' == *current ) or isdigit( *current ) )
+		else if ( ( '-' == frame.peek() ) or isdigit( frame.peek() ) )
 		{
 			_parseNumber( frame );
 		}
-		else if ( '{' == *current )
+		else if ( '{' == frame.peek() )
 		{
 			_parseObject( frame );
 		}
-		else if ( '[' == *current )
+		else if ( '[' == frame.peek() )
 		{
 			_parseArray( frame );
 		}
-		else if ( 0 == strncmp( STRING_TRUE, current, strlen( STRING_TRUE ) ) )
+		else if ( frame.strncmp( STRING_TRUE, strlen( STRING_TRUE ) ) )
 		{
+			// Parse a boolean
 			mType = Type::boolean;
 			mBoolean = true;
-			current += strlen( STRING_TRUE );
+			frame.update( strlen( STRING_TRUE ) );
 		}
-		else if ( 0 == strncmp( STRING_FALSE, current, strlen( STRING_FALSE ) ) )
+		else if ( frame.strncmp( STRING_FALSE, strlen( STRING_FALSE ) ) )
 		{
+			// Parse a boolean
 			mType = Type::boolean;
 			mBoolean = false;
-			current += strlen( STRING_TRUE );
+			frame.update( strlen( STRING_FALSE ) );
 		}
-		else if ( 0 == strncmp( STRING_NULL, current, strlen( STRING_NULL ) ) )
+		else if ( frame.strncmp( STRING_NULL, strlen( STRING_NULL ) ) )
 		{
+			// Parse a null
 			mType = Type::null;
-			current += strlen( STRING_NULL );
+			frame.update( strlen( STRING_NULL ) );
 		}
 		else
 		{
-			throw ParseError( "parseValue", current, frame );
+			throw ParseError( "parseValue", frame );
 		}
 
 		_parseWhitespace( frame );
