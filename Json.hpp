@@ -730,8 +730,70 @@ public:
 		return *this;
 	}
 
-	bool operator==( const JsonValue& other ) const noexcept;
-	bool operator!=( const JsonValue& other ) const noexcept;
+	/**
+	 * Compare equals operator.
+	 * @param other Const reference to the JsonValue object to compare against.
+	 * @return True is returned if this and other are equal, else false.
+	 */
+	bool operator==( const JsonValue& other ) const noexcept
+	{
+		if ( mType != other.mType )
+		{
+			return false;
+		}
+
+		switch ( mType )
+		{
+		case Type::object:
+			return mMembers == other.mMembers;
+
+		case Type::array:
+			return mElements == other.mElements;
+
+		case Type::string:
+			return mStringValue == other.mStringValue;
+
+		case Type::number:
+			switch ( mNumericType )
+			{
+			case eNumberType::FLOATING:
+				return mNumericValue.floatValue == other.mNumericValue.floatValue;
+
+			case eNumberType::SIGNED_INTEGRAL:
+				return mNumericValue.signedIntegral == other.mNumericValue.signedIntegral;
+
+			case eNumberType::UNSIGNED_INTEGRAL:
+				return mNumericValue.unsignedIntegral == other.mNumericValue.unsignedIntegral;
+#ifdef USE_GMP
+			case eNumberType::MULTIPLE_PRECISION_FLOAT:
+				return mpf_cmp( mNumericValue.MPFloatValue, other.mNumericValue.MPFloatValue );
+
+			case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+				return mpz_cmp( mNumericValue.MPIntegralValue, other.mNumericValue.MPIntegralValue );
+#endif
+			}
+
+			return false;
+
+		case Type::boolean:
+			return mBoolean == other.mBoolean;
+
+		case Type::null:
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Compare not equal operator.
+	 * @param other Const reference to the JsonValue object to compare against.
+	 * @return True is returned if this and other are not equal, else false.
+	 */
+	bool operator!=( const JsonValue& other ) const noexcept
+	{
+		return not this->operator==( other );
+	}
 
 	/**
 	 * Member access for object type JsonValue instances.
