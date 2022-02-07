@@ -884,9 +884,14 @@ public:
 	 */
 	JsonValue& operator[]( const char* const key )
 	{
+		if ( Type::object != mType )
+		{
+			throw std::runtime_error( "Member access 'operator[]( const char* const )' is not defined for non-object type" );
+		}
+
 		if ( nullptr == key )
 		{
-			throw std::invalid_argument( "Key may not be null" );
+			throw std::invalid_argument( "Key may not be a null pointer" );
 		}
 
 		return this->operator[]( std::string( key ) );
@@ -900,6 +905,11 @@ public:
 	 */
 	JsonValue& operator[]( const std::string& key )
 	{
+		if ( Type::object != mType )
+		{
+			throw std::runtime_error( "Member access 'operator[]( const std::string& )' is not defined for non-object type" );
+		}
+
 		return mMembers[ key ];
 	}
 
@@ -917,6 +927,11 @@ public:
 	JsonValue& operator[]( IntegralType index )
 	{
 		size_t absoluteIndex;
+
+		if ( Type::array != mType )
+		{
+			throw std::runtime_error( "Integral index access 'operator[]( IntegralType )' is not defined for non-array type" );
+		}
 
 		// Convert the given index into an absolute offset
 		// from the beginning of the elements array.
@@ -958,6 +973,11 @@ public:
 	 */
 	JsonValue& operator[]( const char* const key ) const
 	{
+		if ( Type::object != mType )
+		{
+			throw std::runtime_error( "Member access 'operator[]( const char* const ) const' is not defined for non-object type" );
+		}
+
 		if ( nullptr == key )
 		{
 			throw std::invalid_argument( "Key may not be null" );
@@ -974,6 +994,11 @@ public:
 	 */
 	JsonValue& operator[]( const std::string& key ) const
 	{
+		if ( Type::object != mType )
+		{
+			throw std::runtime_error( "Member access 'operator[]( const std::string& ) const' is not defined for non-object type" );
+		}
+
 		return mMembers.at( key );
 	}
 
@@ -991,6 +1016,11 @@ public:
 	JsonValue& operator[]( IntegralType index ) const
 	{
 		size_t absoluteIndex;
+
+		if ( Type::array != mType )
+		{
+			throw std::runtime_error( "Integral index access 'operator[]( IntegralType ) const' is not defined for non-array type" );
+		}
 
 		if ( std::is_signed< IntegralType >::value )
 		{
