@@ -162,6 +162,12 @@ private:
 		// source with the given {@param string} buffer.
 		bool strncmp( const char* const string, size_t length )
 		{
+			if ( this->endOfSource() )
+			{
+				return false;
+			}
+
+			return false;
 		}
 
 		// Update the current read position
@@ -182,23 +188,29 @@ private:
 public:
 	using ObjectType = std::map< std::string, JsonValue >;
 	using ArrayType = std::vector< JsonValue >;
-	
+
+	/**
+	 * The JSON type that the JsonValue object represents.
+	 */
 	enum class Type
 	{
-		object,
-		array,
-		string,
-		number,
-		boolean,
-		null,
-		undefined
+		object,    ///< Object type object.
+		array,     ///< Array type object.
+		string,    ///< String type object.
+		number,    ///< Number type object.
+		boolean,   ///< Boolean type object.
+		null,      ///< Null type object.
+		undefined  ///< Not yet defined.
 	};
 
+	/**
+	 * The indentation to use when stringifying the JSON object.
+	 */
 	enum class Indent
 	{
-		TAB,
-		SPACE,
-		NONE
+		TAB,    ///< Use tab for indentation.
+		SPACE,  ///< Use spaces for indentation.
+		NONE    ///< Use no indentation.
 	};
 
 	class iterator
@@ -939,8 +951,31 @@ public:
 		return mElements[ absoluteIndex ];
 	}
 
-	JsonValue& operator[]( const char* const key ) const;
-	JsonValue& operator[]( const std::string& key ) const;
+	/**
+	 * Immutable member access for object type JsonValue instances.
+	 * @param key Pointer to a const char
+	 * @return Reference to the member JsonValue.
+	 */
+	JsonValue& operator[]( const char* const key ) const
+	{
+		if ( nullptr == key )
+		{
+			throw std::invalid_argument( "Key may not be null" );
+		}
+
+		return this->operator[]( std::string( key ) );
+	}
+
+	/**
+	 * Immutable member access for object type JsonValue instances.
+	 * If the key is not present, then std::out_of_range is thrown.
+	 * @param key Const reference to a std::string.
+	 * @return Reference to the member JsonValue.
+	 */
+	JsonValue& operator[]( const std::string& key ) const
+	{
+		return mMembers.at( key );
+	}
 
 	/**
 	 * Immutable element access for array JSON values.
