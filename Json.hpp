@@ -233,32 +233,7 @@ public:
 	 */
 	JsonValue( const JsonValue& other )
 	{
-		mType = other.mType;
-		mStringValue = other.mStringValue;
-		mElements = other.mElements;
-		mMembers = other.mMembers;
-		mBoolean = other.mBoolean;
-		mNumericType = other.mNumericType;
-
-		switch ( mNumericType )
-		{
-		case eNumberType::FLOATING:
-		case eNumberType::SIGNED_INTEGRAL:
-		case eNumberType::UNSIGNED_INTEGRAL:
-			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
-			break;
-#ifdef USE_GMP
-		case eNumberType::MULTIPLE_PRECISION_FLOAT:
-			mpf_init_set( mMPFloatValue, other.mMPFloatValue );
-			break;
-		case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
-			mpz_init_set( mMPIntegralValue, other.mMPIntegralValue );
-			break;
-#endif
-		default:
-			std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
-			break;
-		}
+		_copyAssign( other );
 	}
 
 	/**
@@ -267,14 +242,7 @@ public:
 	 */
 	JsonValue( JsonValue&& other )
 	{
-		mType = std::exchange( other.mType, Type::undefined );
-		mStringValue = std::move( other.mStringValue );
-		mElements = std::move( other.mElements );
-		mMembers = std::move( other.mMembers );
-		mBoolean = std::exchange( other.mBoolean, false );
-		mNumericType = std::exchange( other.mNumericType, eNumberType::NONE );
-		std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
-		std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
+		_moveAssign( std::move( other ) );
 	}
 
 	/**
@@ -583,33 +551,7 @@ public:
 		if ( *this != other )
 		{
 			this->clear();
-
-			mType = other.mType;
-			mStringValue = other.mStringValue;
-			mElements = other.mElements;
-			mMembers = other.mMembers;
-			mBoolean = other.mBoolean;
-			mNumericType = other.mNumericType;
-
-			switch ( mNumericType )
-			{
-			case eNumberType::FLOATING:
-			case eNumberType::SIGNED_INTEGRAL:
-			case eNumberType::UNSIGNED_INTEGRAL:
-				std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
-				break;
-#ifdef USE_GMP
-			case eNumberType::MULTIPLE_PRECISION_FLOAT:
-				mpf_init_set( mMPFloatValue, other.mMPFloatValue );
-				break;
-			case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
-				mpz_init_set( mMPIntegralValue, other.mMPIntegralValue );
-				break;
-#endif
-			default:
-				std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
-				break;
-			}
+			_copyAssign( other );
 		}
 
 		return *this;
@@ -625,16 +567,7 @@ public:
 		if ( *this != other )
 		{
 			this->clear();
-
-			mType = std::exchange( other.mType, Type::undefined );
-			mStringValue = std::move( other.mStringValue );
-			mElements = std::move( other.mElements );
-			mMembers = std::move( other.mMembers );
-			mBoolean = std::exchange( other.mBoolean, false );
-			mNumericType = std::exchange( other.mNumericType, eNumberType::NONE );
-
-			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
-			std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
+			_moveAssign( std::move( other ) );
 		}
 
 		return *this;
@@ -1112,9 +1045,8 @@ public:
 	 */
 	void parse( FILE* jsonFile )
 	{
-		ParseSource source( jsonFile );
-
 		this->clear();
+		ParseSource source( jsonFile );
 		_parseValue( source );
 	}
 
@@ -1125,9 +1057,8 @@ public:
 	 */
 	void parse( std::ifstream& jsonIFStream )
 	{
-		ParseSource source( jsonIFStream );
-
 		this->clear();
+		ParseSource source( jsonIFStream );
 		_parseValue( source );
 	}
 
@@ -1138,9 +1069,8 @@ public:
 	 */
 	void parse( const std::string& jsonString )
 	{
-		ParseSource source( jsonString );
-
 		this->clear();
+		ParseSource source( jsonString );
 		_parseValue( source );
 	}
 
@@ -1202,6 +1132,7 @@ public:
 
 private:
 
+	// Initialize our variables
 	void _initPrimitiveVariables( Type type )
 	{
 		mType = type;
@@ -1210,6 +1141,58 @@ private:
 		std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
 	}
 
+	// Copy from other into this instance
+	void _copyAssign( const JsonValue& other )
+	{
+		mType = other.mType;
+		mStringValue = other.mStringValue;
+		mElements = other.mElements;
+		mMembers = other.mMembers;
+		mBoolean = other.mBoolean;
+		mNumericType = other.mNumericType;
+
+		switch ( mNumericType )
+		{
+		case eNumberType::FLOATING:
+		case eNumberType::SIGNED_INTEGRAL:
+		case eNumberType::UNSIGNED_INTEGRAL:
+			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+			break;
+#ifdef USE_GMP
+		case eNumberType::MULTIPLE_PRECISION_FLOAT:
+			mpf_init_set( mMPFloatValue, other.mMPFloatValue );
+			break;
+		case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+			mpz_init_set( mMPIntegralValue, other.mMPIntegralValue );
+			break;
+#endif
+		default:
+			std::memset( &mNumericValue, 0, sizeof( mNumericValue ) );
+			break;
+		}
+	}
+
+	// Move other instance into this instance
+	void _moveAssign( JsonValue&& other )
+	{
+		mType = std::exchange( other.mType, Type::undefined );
+		mStringValue = std::move( other.mStringValue );
+		mElements = std::move( other.mElements );
+		mMembers = std::move( other.mMembers );
+		mBoolean = std::exchange( other.mBoolean, false );
+		mNumericType = std::exchange( other.mNumericType, eNumberType::NONE );
+
+		// We don't need to worry about the numeric type because, regardless
+		// of the type, if we copy the complete byte representation and
+		// then zero the bytes for mNumericValue in other, then we can be sure
+		// that there is only one set of the bytes between the 2 objects.
+		// If there are any pointers in the GMP objects, then they will be
+		// released by this object and not by other.
+		std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
+		std::memset( &other.mNumericValue, 0, sizeof( mNumericValue ) );
+	}
+
+	// Get the type as a string
 	const std::string& _getTypeString() const
 	{
 		static const std::map< JsonValue::Type, std::string > TYPE_STRING_MAP
