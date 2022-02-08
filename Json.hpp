@@ -1003,16 +1003,21 @@ public:
 				{
 					case eNumberType::FLOATING:
 						return 0.0 != mNumericValue.floatValue;
+
 					case eNumberType::SIGNED_INTEGRAL:
 						return 0 != mNumericValue.signedIntegral;
+
 					case eNumberType::UNSIGNED_INTEGRAL:
 						return 0 != mNumericValue.unsignedIntegral;
+
 #ifdef USE_GMP
 					case eNumberType::MULTIPLE_PRECISION_FLOAT:
 						return 0 != mpf_sgn( mNumericValue.MPFloatValue );
+
 					case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
 						return 0 != mpz_sgn( mNumericValue.MPIntegralValue );
 #endif
+
 					default:
 						return false;
 				}
@@ -1031,12 +1036,129 @@ public:
 		return false;
 	}
 
-	operator std::string() const;
+	/**
+	 * Cast the JsonValue to a string.
+	 */
+	operator std::string() const
+	{
+#ifdef USE_GMP
+		mp_exp_t exponent;
+		char* cstring = nullptr;
+		void ( *freeFunction )( void*, size_t );
+#endif
+		std::string returnString;
+
+		switch ( mType )
+		{
+		case Type::object:
+			returnString = std::string( "[object Object]" );
+			break;
+
+		case Type::array:
+			if ( 0 < mElements.size() )
+			{
+				returnString = std::string( mElements[ 0 ] );
+				for ( size_t index( 0 ); ++index < mElements.size(); )
+				{
+					returnString.append( "," ).append( std::string( mElements[ index ] ) );
+				}
+			}
+			break;
+
+		case Type::string:
+			returnString = mStringValue;
+			break;
+
+		case Type::number:
+			switch ( mNumericType )
+			{
+			case eNumberType::FLOATING:
+				returnString = std::to_string( mNumericValue.floatValue );
+				break;
+
+			case eNumberType::SIGNED_INTEGRAL:
+				returnString = std::to_string( mNumericValue.signedIntegral );
+				break;
+
+			case eNumberType::UNSIGNED_INTEGRAL:
+				returnString = std::to_string( mNumericValue.unsignedIntegral );
+				break;
+
+#ifdef USE_GMP
+			case eNumberType::MULTIPLE_PRECISION_FLOAT:
+				mp_get_memory_functions( nullptr, nullptr, &freeFunction );
+				cstring = mpz_get_str( nullptr, 10, mNumericValue.MPFloatValue );
+				returnString = std::string( cstring );
+				freeFunction( cstring, strlen( cstring ) + 1 );
+				cstring = nullptr;
+				break;
+
+			case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+				mp_get_memory_functions( nullptr, nullptr, &freeFunction );
+				cstring = mpf_get_str( nullptr, &exponent, 10, 0, mNumericValue.MPIntegralValue );
+				if ( 0 == strlen( cstring ) )
+				{
+					returnString = std::string( "0.0" );
+				}
+				else
+				{
+					// This is going to be fairly complicated.
+				}
+				freeFunction( cstring, strlen( cstring ) + 1 );
+				cstring = nullptr;
+				break;
+#endif
+			}
+			break;
+
+		case Type::boolean:
+			returnString = std::string( ( mBoolean ) ? "true" : "false" );
+			break;
+
+		case Type::null:
+			returnString = std::string( "null" );
+			break;
+		}
+
+		return returnString;
+	}
+
+	/**
+	 * Cast the JsonValue to an ArithmeticType value.
+	 */
 	template < typename ArithmeticType,
 		typename = typename std::enable_if< std::is_arithmetic< ArithmeticType >::value >::type >
-	operator ArithmeticType() const;
-	operator ObjectType() const;
-	operator ArrayType() const;
+	operator ArithmeticType() const
+	{
+		switch ( mType )
+		{
+		case Type::object:
+		case Type::array:
+		case Type::string:
+		case Type::number:
+		case Type::boolean:
+			return ArithmeticType( mBoolean );
+
+		case Type::null:
+			return ArithmeticType( 0 );
+		}
+
+		// Something
+	}
+
+	/**
+	 * Cast the JsonValue to an ObjectType.
+	 */
+	operator ObjectType() const
+	{
+	}
+
+	/**
+	 * Cast the JsonValue to an ArrayType.
+	 */
+	operator ArrayType() const
+	{
+	}
 
 	/**
 	 * Parse a JsonValue from the given FILE object to this instance.
