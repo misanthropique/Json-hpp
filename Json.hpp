@@ -603,7 +603,25 @@ public:
 		this->clear();
 	}
 
-	iterator begin();
+	/**
+	 * Return an iterator to the beginning of either an object or array JsonValue instance.
+	 * @return The iterator to the beginning of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	iterator begin()
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return iterator( mMembers.begin() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return iterator( mElements.begin() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
 
 	const_iterator begin() const;
 
@@ -680,7 +698,25 @@ public:
 		jsonString = this->stringify( indent, indentLevel );
 	}
 
-	iterator end();
+	/**
+	 * Return an iterator to the end of either an object or array JsonValue instance.
+	 * @return The iterator to the end of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	iterator end()
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return iterator( mMembers.end() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return iterator( mElements.end() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
 
 	const_iterator end() const;
 
