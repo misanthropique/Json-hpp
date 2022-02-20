@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 #include <gmp.h>
 #endif
 
@@ -342,7 +342,7 @@ public:
 		}
 	}
 
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 	/**
 	 * Multiple precision integral copy initialization constructor.
 	 * @param array Const reference to an ArrayType to initialize the JsonValue to.
@@ -390,7 +390,7 @@ public:
 	 */
 	void clear() noexcept
 	{
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 		switch ( mNumericType )
 		{
 		case eNumberType::MULTIPLE_PRECISION_FLOAT:
@@ -687,7 +687,7 @@ public:
 		return *this;
 	}
 
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 	/**
 	 * Multiple precision integral numeric assignment operator.
 	 * @param multiplePrecisionIntegral mpz_t object.
@@ -779,7 +779,7 @@ public:
 
 			case eNumberType::UNSIGNED_INTEGRAL:
 				return mNumericValue.unsignedIntegral == other.mNumericValue.unsignedIntegral;
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 			case eNumberType::MULTIPLE_PRECISION_FLOAT:
 				return mpf_cmp( mNumericValue.MPFloatValue, other.mNumericValue.MPFloatValue );
 
@@ -1010,7 +1010,7 @@ public:
 					case eNumberType::UNSIGNED_INTEGRAL:
 						return 0 != mNumericValue.unsignedIntegral;
 
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 					case eNumberType::MULTIPLE_PRECISION_FLOAT:
 						return 0 != mpf_sgn( mNumericValue.MPFloatValue );
 
@@ -1041,7 +1041,7 @@ public:
 	 */
 	operator std::string() const
 	{
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 		mp_exp_t exponent;
 		char* cstring = nullptr;
 		void ( *freeFunction )( void*, size_t );
@@ -1084,7 +1084,7 @@ public:
 				returnString = std::to_string( mNumericValue.unsignedIntegral );
 				break;
 
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 			case eNumberType::MULTIPLE_PRECISION_FLOAT:
 				mp_get_memory_functions( nullptr, nullptr, &freeFunction );
 				cstring = mpz_get_str( nullptr, 10, mNumericValue.MPFloatValue );
@@ -1280,7 +1280,7 @@ private:
 		case eNumberType::UNSIGNED_INTEGRAL:
 			std::memcpy( &mNumericValue, &other.mNumericValue, sizeof( mNumericValue ) );
 			break;
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 		case eNumberType::MULTIPLE_PRECISION_FLOAT:
 			mpf_init_set( mMPFloatValue, other.mMPFloatValue );
 			break;
@@ -1336,7 +1336,7 @@ private:
 		long double floatValue;      // The parsed number is floating.
 		intmax_t signedIntegral;     // The parsed number is signed.
 		uintmax_t unsignedIntegral;  // The parsed number is unsigned.
-#ifdef USE_GMP
+#ifdef INCLUDE_GMP
 		mpz_t MPIntegralValue;      // Store the number as a multi-precision integral.
 		mpf_t MPFloatValue;         // Store the number as a multi-precision floating.
 #endif
