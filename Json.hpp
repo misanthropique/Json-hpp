@@ -213,8 +213,226 @@ public:
 		NONE    ///< Use no indentation.
 	};
 
+	/**
+	 * Iterator object for iterating over object and array type JSON values.
+	 */
 	class iterator
 	{
+	private:
+		friend class JsonValue;
+
+		ObjectType::iterator mObjectIterator;
+		ArrayType::iterator mArrayIterator;
+		JsonValue::Type mValueType;
+
+		// ObjectType iterator constructor.
+		iterator( ObjectType::iterator iterator )
+		{
+			mObjectIterator = iterator;
+			mValueType = JsonValue::Type::object;
+		}
+
+		// ArrayType iterator constructor.
+		iterator( ArrayType::iterator iterator )
+		{
+			mArrayIterator = iterator;
+			mValueType = JsonValue::Type::array;
+		}
+
+		// Copy assignment
+		void _copyAssign( const iterator& other )
+		{
+			mObjectIterator = other.mObjectIterator;
+			mArrayIterator = other.mArrayIterator;
+			mValueType = other.mValueType;
+		}
+
+		// Move assignment
+		void _moveAssign( iterator&& other )
+		{
+			mObjectIterator = std::move( other.mObjectIterator );
+			mArrayIterator = std::move( other.mArrayIterator );
+			mValueType = std::exchange( other.mValueType, JsonValue::Type::undefined );
+		}
+
+	public:
+		using iterator_category = std::forward_iterator_tag;
+		using difference_type   = std::ptrdiff_t;
+		using value_type        = JsonValue;
+		using pointer           = JsonValue*;
+		using reference         = JsonValue&;
+
+		/**
+		 * Default constructor to an empty iterator.
+		 */
+		iterator()
+		{
+			mValueType = JsonValue::Type::undefined;
+		}
+
+		/**
+		 * Move constructor.
+		 * @param other R-Value to iterator to move to this instance.
+		 */
+		iterator( iterator&& other )
+		{
+			_moveAssign( std::move( other ) );
+		}
+
+		/**
+		 * Copy constructor.
+		 * @param other Const reference to iterator to copy to this instance.
+		 */
+		iterator( const iterator& other )
+		{
+			_copyAssign( other );
+		}
+
+		/**
+		 * Move assignment operator.
+		 * @param other R-value to iterator to move to this instance.
+		 * @return Reference to this iterator instance is returned.
+		 */
+		iterator& operator=( iterator&& other )
+		{
+			if ( this != &other )
+			{
+				_moveAssign( std::move( other ) );
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Copy assignment operator.
+		 * @param other Const reference to iterator to copy to this instance.
+		 * @return Reference to this iterator instance is returned.
+		 */
+		iterator& operator=( const iterator& other )
+		{
+			if ( this != &other )
+			{
+				_copyAssign( other );
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Compare iterators for equality.
+		 * @param other Const reference to the iterator to compare against this iterator.
+		 * @return True is returned if this and {@param other} compare equal.
+		 */
+		bool operator==( const iterator& other ) const
+		{
+			if ( mValueType != other.mValueType )
+			{
+				return false;
+			}
+
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return mObjectIterator == other.mObjectIterator;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator == other.mArrayIterator;
+			}
+
+			return false;
+		}
+
+		/**
+		 * Compare iterators for inequality.
+		 * @param other Const reference to the iterator to compare against this iterator.
+		 * @return True is returned if this and {@param other} compare not equal.
+		 */
+		bool operator!=( const iterator& other ) const
+		{
+			return not this->operator==( other );
+		}
+
+		/**
+		 * Pointer access to a JsonValue. If the iterator is
+		 * not defined, then a null pointer is returned.
+		 * @return Return pointer to a JsonValue.
+		 */
+		pointer operator->()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return &mObjectIterator.operator*().second;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator.operator->();
+			}
+
+			return static_cast< pointer >( nullptr );
+		}
+
+		/**
+		 * Reference access to a JsonValue. If the iterator is
+		 * not defined, then a reference from a null pointer is returned.
+		 * @return Reference to a JsonValue object.
+		 */
+		reference operator*()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return mObjectIterator.operator*().second;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator.operator*();
+			}
+
+			return *static_cast< pointer >( nullptr );
+		}
+
+		/**
+		 * Post-increment operator.
+		 * @return Return the iterator prior to incrementing.
+		 */
+		iterator operator++( int )
+		{
+			iterator previous( *this );
+			this->operator++();
+			return previous;
+		}
+
+		/**
+		 * Pre-increment operator.
+		 * @return Return the iterator post increment.
+		 */
+		iterator& operator++()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				mObjectIterator.operator++();
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				mArrayIterator.operator++();
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Swap the value of this iterator with another.
+		 * @param other Reference to the iterator with which to swap values.
+		 */
+		void swap( iterator& other )
+		{
+			std::swap( mValueType, other.mValueType );
+			std::swap( mObjectIterator, other.mObjectIterator );
+			std::swap( mArrayIterator, other.mArrayIterator );
+		}
 	};
 
 	class const_iterator
