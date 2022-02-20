@@ -1,0 +1,83 @@
+@startuml
+
+class JsonValue
+{
++{method}JsonValue( JsonValue::Type type = JsonValue::Type::undefined );
++{method}JsonValue( JsonValue&& other );
++{method}JsonValue( const JsonValue& other );
++{method}JsonValue( ObjectType&& object );
++{method}JsonValue( const ObjectType& object );
++{method}JsonValue( ArrayType&& array );
++{method}JsonValue( const ArrayType& array );
++{method}JsonValue( std::string&& string );
++{method}JsonValue( const std::string& string );
++{method}JsonValue( bool boolean );
++{method}template<typename ArithmeticType,
+	typename = typename std::enable_if< std::is_arthmetic< ArithmeticType >::value >::type >
+	JsonValue( ArithmeticType arithmeticValue );
+#ifdef USE_GMP
++{method}JsonValue( mpz_t multiplePrecisionIntegral );
++{method}JsonValue( mpf_t multiplePrecisionFloat );
+#endif
++{method}JsonValue( std::nullptr_t );
++{method}~JsonValue();
++{method}JsonValue::iterator begin();
++{method}JsonValue::const_iterator begin() const;
++{method}void clear();
++{method}void dump( FILE* jsonFile, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const;
++{method}void dump( std::ofstream& jsonOFStream, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const;
++{method}void dumps( std::string& jsonString, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const;
++{method}JsonValue::iterator end();
++{method}JsonValue::const_iterator end() const;
++{method}bool hasMember( const std::string& key ) const noexcept;
++{method}bool is( Type type ) const noexcept;
++{method}std::vector< std::string > keys() const;
++{method}void load( FILE* jsonFile );
++{method}void load( std::ifstream& jsonIFStream );
++{method}void loads( const std::string& jsonString );
++{method}JsonValue& operator=( JsonValue&& other );
++{method}JsonValue& operator=( const JsonValue& other );
++{method}JsonValue& operator=( ObjectType&& object );
++{method}JsonValue& operator=( const ObjectType& object );
++{method}JsonValue& operator=( ArrayType&& array );
++{method}JsonValue& operator=( const ArrayType& array );
++{method}JsonValue& operator=( std::string&& string );
++{method}JsonValue& operator=( const std::string& string );
++{method}template<typename ArithmeticType,
+	typename = typename std::enable_if< std::is_arthmetic< ArithmeticType >::value >::type >
+	JsonValue& operator=( ArithmeticType arithmeticValue );
+#ifdef USE_GMP
++{method}JsonValue& operator=( mpz_t multiplePrecisionIntegral );
++{method}JsonValue& operator=( mpf_t multiplePrecitionFloat );
+#endif
++{method}JsonValue& operator=( bool boolean );
++{method}JsonValue& operator=( std::nullptr_t );
++{method}bool operator==( const JsonValue& other ) const noexcept;
++{method}bool operator!=( const JsonValue& other ) const noexcept;
++{method}JsonValue& operator[]( const char* const key );
++{method}JsonValue& operator[]( const std::string& key );
++{method}template<typename IntegralType,
+	typename = typename std::enable_if< std::is_integral< IntegralType >::value >::type >
+	JsonValue& operator[]( IntegralType index );
++{method}JsonValue& operator[]( const char* const key ) const;
++{method}JsonValue& operator[]( const std::string& key ) const;
++{method}template<typename IntegralType,
+	typename = typename std::enable_if< std::is_integral< IntegralType >::value >::type >
+	JsonValue& operator[]( IntegralType index ) const;
++{method}operator bool() const;
++{method}operator std::string() const;
++{method}template<typename ArithmeticType,
+	typename = typename std::enable_if< std::is_arthmetic< ArithmeticType >::value >::type >
+	operator ArithmeticType() const;
++{method}operator ObjectType() const;
++{method}operator ArrayType() const;
++{method}void parse( FILE* jsonFile );
++{method}void parse( std::ifstream& jsonIFStream );
++{method}void parse( const std::string& jsonString );
++{method}size_t size() const;
++{method}std::string stringify( Indent indent = Indent::NONE, size_t indentLevel = 4 ) const;
++{method}Type type() const noexcept;
++{method}const std::string& typeString() const;
+}
+
+@enduml
