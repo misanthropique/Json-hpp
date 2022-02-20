@@ -1,5 +1,5 @@
 /**
- * Copyright ©2021. Brent Weichel. All Rights Reserved.
+ * Copyright ©2021-2022. Brent Weichel. All Rights Reserved.
  * Permission to use, copy, modify, and/or distribute this software, in whole
  * or part by any means, without express prior written agreement is prohibited.
  */
@@ -215,7 +215,10 @@ public:
 
 	class iterator
 	{
-		
+	};
+
+	class const_iterator
+	{
 	};
 
 	/**
@@ -384,6 +387,8 @@ public:
 
 	iterator begin();
 
+	const_iterator begin() const;
+
 	/**
 	 * Clear the contents of this JsonValue instance.
 	 * The type of this JsonValue instance shall be undefined after calling this method.
@@ -458,6 +463,8 @@ public:
 	}
 
 	iterator end();
+
+	const_iterator end() const;
 
 	/**
 	 * Check if the given key is present under the constraint that the JsonValue is an object.
