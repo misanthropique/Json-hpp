@@ -28,7 +28,7 @@
  * Class for representing a JSON value, as defined in the ECMA-404 specification, in C++.
  * Reference: https://www.json.org/json-en.html
  * Note(s):
- *    - Requires C++17.
+ *    - Requires at minimum C++14.
  *    - The design of this implementation is focused on
  *      have a similar syntactic feel to ECMAScript when manipulating
  *      JSON. The dump(s) and load(s) functions are present for those
@@ -289,7 +289,7 @@ private:
 
 public:
 	/**
-	 * Iterator object for iterating over object and array type JSON values.
+	 * Mutable iterator object for iterating over object and array type JSON values.
 	 */
 	class iterator
 	{
@@ -510,8 +510,226 @@ public:
 		}
 	};
 
+	/**
+	 * Immutable iterator object for iterating over object and array type JSON values.
+	 */
 	class const_iterator
 	{
+	private:
+		friend class JsonValue;
+
+		ObjectType::const_iterator mObjectIterator;
+		ArrayType::const_iterator mArrayIterator;
+		JsonValue::Type mValueType;
+
+		// ObjectType iterator constructor.
+		const_iterator( ObjectType::const_iterator iterator )
+		{
+			mObjectIterator = iterator;
+			mValueType = JsonValue::Type::object;
+		}
+
+		// ArrayType iterator constructor.
+		const_iterator( ArrayType::const_iterator iterator )
+		{
+			mArrayIterator = iterator;
+			mValueType = JsonValue::Type::array;
+		}
+
+		// Copy assignment
+		void _copyAssign( const const_iterator& other )
+		{
+			mObjectIterator = other.mObjectIterator;
+			mArrayIterator = other.mArrayIterator;
+			mValueType = other.mValueType;
+		}
+
+		// Move assignment
+		void _moveAssign( const_iterator&& other )
+		{
+			mObjectIterator = std::move( other.mObjectIterator );
+			mArrayIterator = std::move( other.mArrayIterator );
+			mValueType = std::exchange( other.mValueType, JsonValue::Type::undefined );
+		}
+
+	public:
+		using iterator_category = std::forward_iterator_tag;
+		using difference_type   = std::ptrdiff_t;
+		using value_type        = JsonValue;
+		using pointer           = const JsonValue*;
+		using reference         = const JsonValue&;
+
+		/**
+		 * Default constructor to an empty iterator.
+		 */
+		const_iterator()
+		{
+			mValueType = JsonValue::Type::undefined;
+		}
+
+		/**
+		 * Move constructor.
+		 * @param other R-Value to iterator to move to this instance.
+		 */
+		const_iterator( const_iterator&& other )
+		{
+			_moveAssign( std::move( other ) );
+		}
+
+		/**
+		 * Copy constructor.
+		 * @param other Const reference to iterator to copy to this instance.
+		 */
+		const_iterator( const const_iterator& other )
+		{
+			_copyAssign( other );
+		}
+
+		/**
+		 * Move assignment operator.
+		 * @param other R-value to iterator to move to this instance.
+		 * @return Reference to this iterator instance is returned.
+		 */
+		const_iterator& operator=( const_iterator&& other )
+		{
+			if ( this != &other )
+			{
+				_moveAssign( std::move( other ) );
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Copy assignment operator.
+		 * @param other Const reference to iterator to copy to this instance.
+		 * @return Reference to this iterator instance is returned.
+		 */
+		const_iterator& operator=( const const_iterator& other )
+		{
+			if ( this != &other )
+			{
+				_copyAssign( other );
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Compare iterators for equality.
+		 * @param other Const reference to the iterator to compare against this iterator.
+		 * @return True is returned if this and {@param other} compare equal.
+		 */
+		bool operator==( const const_iterator& other ) const
+		{
+			if ( mValueType != other.mValueType )
+			{
+				return false;
+			}
+
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return mObjectIterator == other.mObjectIterator;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator == other.mArrayIterator;
+			}
+
+			return false;
+		}
+
+		/**
+		 * Compare iterators for inequality.
+		 * @param other Const reference to the iterator to compare against this iterator.
+		 * @return True is returned if this and {@param other} compare not equal.
+		 */
+		bool operator!=( const const_iterator& other ) const
+		{
+			return not this->operator==( other );
+		}
+
+		/**
+		 * Const pointer access to a JsonValue. If the iterator is
+		 * not defined, then a null pointer is returned.
+		 * @return Return const pointer to a JsonValue.
+		 */
+		pointer operator->()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return &mObjectIterator.operator*().second;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator.operator->();
+			}
+
+			return static_cast< pointer >( nullptr );
+		}
+
+		/**
+		 * Const reference access to a JsonValue. If the iterator is
+		 * not defined, then a const reference from a null pointer is returned.
+		 * @return Const reference to a JsonValue object.
+		 */
+		reference operator*()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				return mObjectIterator.operator*().second;
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				return mArrayIterator.operator*();
+			}
+
+			return *static_cast< pointer >( nullptr );
+		}
+
+		/**
+		 * Post-increment operator.
+		 * @return Return the const_iterator prior to incrementing.
+		 */
+		const_iterator operator++( int )
+		{
+			iterator previous( *this );
+			this->operator++();
+			return previous;
+		}
+
+		/**
+		 * Pre-increment operator.
+		 * @return Return the const_iterator post increment.
+		 */
+		const_iterator& operator++()
+		{
+			if ( JsonValue::Type::object == mValueType )
+			{
+				mObjectIterator.operator++();
+			}
+
+			if ( JsonValue::Type::array == mValueType )
+			{
+				mArrayIterator.operator++();
+			}
+
+			return *this;
+		}
+
+		/**
+		 * Swap the value of this iterator with another.
+		 * @param other Reference to the iterator with which to swap values.
+		 */
+		void swap( const_iterator& other )
+		{
+			std::swap( mValueType, other.mValueType );
+			std::swap( mObjectIterator, other.mObjectIterator );
+			std::swap( mArrayIterator, other.mArrayIterator );
+		}
 	};
 
 	/**
@@ -698,7 +916,65 @@ public:
 		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
 	}
 
-	const_iterator begin() const;
+	/**
+	 * Return a const_iterator to the beginning of either an object or array JsonValue instance.
+	 * @return The const_iterator to the beginning of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	const_iterator begin() const
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return const_iterator( mMembers.cbegin() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return const_iterator( mElements.cbegin() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
+
+	/**
+	 * Return a const_iterator to the beginning of either an object or array JsonValue instance.
+	 * @return The const_iterator to the beginning of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	const_iterator cbegin() const
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return const_iterator( mMembers.cbegin() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return const_iterator( mElements.cbegin() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
+
+	/**
+	 * Return a const_iterator to the end of either an object or array JsonValue instance.
+	 * @return The const_iterator to the end of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	const_iterator cend() const
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return const_iterator( mMembers.cend() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return const_iterator( mElements.cend() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
 
 	/**
 	 * Clear the contents of this JsonValue instance.
@@ -798,7 +1074,25 @@ public:
 		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
 	}
 
-	const_iterator end() const;
+	/**
+	 * Return a const_iterator to the end of either an object or array JsonValue instance.
+	 * @return The const_iterator to the end of either an object or array JsonValue instance.
+	 * @throw std::runtime_error is thrown if the JsonValue type is non-iterable.
+	 */
+	const_iterator end() const
+	{
+		if ( JsonValue::Type::object == mType )
+		{
+			return const_iterator( mMembers.cend() );
+		}
+
+		if ( JsonValue::Type::array == mType )
+		{
+			return const_iterator( mElements.cend() );
+		}
+
+		throw std::runtime_error( "Cannot create iterator for non-iterable type: " + _getTypeString() );
+	}
 
 	/**
 	 * Check if the given key is present under the constraint that the JsonValue is an object.
