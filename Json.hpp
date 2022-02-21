@@ -28,7 +28,7 @@
  * Class for representing a JSON value, as defined in the ECMA-404 specification, in C++.
  * Reference: https://www.json.org/json-en.html
  * Note(s):
- *    - Requires C++14.
+ *    - Requires C++17.
  *    - The design of this implementation is focused on
  *      have a similar syntactic feel to ECMAScript when manipulating
  *      JSON. The dump(s) and load(s) functions are present for those
@@ -38,6 +38,34 @@
  */
 class JsonValue
 {
+public:
+	using ObjectType = std::map< std::string, JsonValue >;
+	using ArrayType = std::vector< JsonValue >;
+
+	/**
+	 * The JSON type that the JsonValue object represents.
+	 */
+	enum class Type
+	{
+		object,    ///< Object type object.
+		array,     ///< Array type object.
+		string,    ///< String type object.
+		number,    ///< Number type object.
+		boolean,   ///< Boolean type object.
+		null,      ///< Null type object.
+		undefined  ///< Not yet defined.
+	};
+
+	/**
+	 * The indentation to use when stringifying the JSON object.
+	 */
+	enum class Indent
+	{
+		TAB,    ///< Use tab for indentation.
+		SPACE,  ///< Use spaces for indentation.
+		NONE    ///< Use no indentation.
+	};
+
 private:
 	/*
 	 * Enumeration of number types, which is
@@ -55,8 +83,82 @@ private:
 		NONE                          // We've not resolved the numeric type
 	};
 
+	// Enumeration of sink types
+	enum class eSinkType
+	{
+		STRING,
+		FILE,
+		OFSTREAM
+	};
+
+	// Class for abstracting the sink
+	class JsonSink
+	{
+	public:
+		std::string& stringSink;
+		std::ofstream& ofStreamSink;
+		FILE* fileSink;
+
+		eSinkType sinkType;
+		JsonValue::Indent indentation;
+		size_t indentSpaces;
+
+		// String constructor
+		JsonSink( std::string& sink, JsonValue::Indent indent, size_t indentLevel ) :
+			stringSink( sink )
+		{
+			sinkType = eSinkType::STRING;
+			indentation = indent;
+			indentSpaces = indentLevel;
+		}
+
+		// FILE constructor
+		JsonSink( FILE* sink, JsonValue::Indent indent, size_t indentLevel ) :
+			fileSink( sink )
+		{
+			sinkType = eSinkType::FILE;
+			indentation = indent;
+			indentSpaces = indentLevel;
+		}
+
+		// OFStream constructor
+		JsonSink( std::ofstream& sink, JsonValue::Indent indent, size_t indentLevel ) :
+			ofStreamSink( sink )
+		{
+			sinkType = eSinkType::OFSTREAM;
+			indentation = indent;
+			indentSpaces = indentLevel;
+		}
+
+		// Append the given string to the sink
+		void append( const std::string& string )
+		{
+			if ( 0 == string.length() )
+			{
+				return;
+			}
+
+			if ( eSinkType::STRING == sinkType )
+			{
+				stringSink.append( string );
+			}
+
+			if ( eSinkType::FILE == sinkType )
+			{
+				fwrite( string.c_str(), 1, string.length(), fileSink );
+			}
+
+			if ( eSinkType::OFSTREAM == sinkType )
+			{
+				ofStreamSink << string;
+			}
+		}
+	};
+
+	// Class for parsing JSON from a source
 	class ParseSource
 	{
+	private:
 		// Where are we pulling data from
 		enum class Source
 		{
@@ -186,33 +288,6 @@ private:
 	};
 
 public:
-	using ObjectType = std::map< std::string, JsonValue >;
-	using ArrayType = std::vector< JsonValue >;
-
-	/**
-	 * The JSON type that the JsonValue object represents.
-	 */
-	enum class Type
-	{
-		object,    ///< Object type object.
-		array,     ///< Array type object.
-		string,    ///< String type object.
-		number,    ///< Number type object.
-		boolean,   ///< Boolean type object.
-		null,      ///< Null type object.
-		undefined  ///< Not yet defined.
-	};
-
-	/**
-	 * The indentation to use when stringifying the JSON object.
-	 */
-	enum class Indent
-	{
-		TAB,    ///< Use tab for indentation.
-		SPACE,  ///< Use spaces for indentation.
-		NONE    ///< Use no indentation.
-	};
-
 	/**
 	 * Iterator object for iterating over object and array type JSON values.
 	 */
@@ -665,6 +740,8 @@ public:
 	 */
 	void dump( FILE* jsonFile, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
 	{
+		JsonSink sink( jsonFile, indent, indentLevel );
+		_writeJSON( *this, sink );
 	}
 
 	/**
@@ -680,6 +757,8 @@ public:
 	 */
 	void dump( std::ofstream& jsonOFStream, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
 	{
+		JsonSink sink( jsonOFStream, indent, indentLevel );
+		_writeJSON( *this, sink );
 	}
 
 	/**
@@ -695,7 +774,8 @@ public:
 	 */
 	void dumps( std::string& jsonString, Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
 	{
-		jsonString = this->stringify( indent, indentLevel );
+		JsonSink sink( jsonString, indent, indentLevel );
+		_writeJSON( *this, sink );
 	}
 
 	/**
@@ -1492,7 +1572,10 @@ public:
 	 */
 	std::string stringify( Indent indent = Indent::NONE, size_t indentLevel = 4 ) const
 	{
-		
+		std::string jsonString;
+		JsonSink sink( jsonString, indent, indentLevel );
+		_writeJSON( *this, sink );
+		return jsonString;
 	}
 
 	/**
@@ -1820,5 +1903,150 @@ private:
 		}
 
 		_parseWhitespace( source );
+	}
+
+	// Write the given JsonValue out to the given sink.
+	void _writeJSON( const JsonValue& value, JsonSink& sink, size_t level = 0 )
+	{
+		// This string is for use with array and object.
+		std::string indentationPrefix( "\n" );
+
+		if ( JsonValue::Indent::TAB == sink.indentation )
+		{
+			indentationPrefix.append( level, '\t' );
+		}
+
+		if ( JsonValue::Indent::SPACE == sink.indentation )
+		{
+			indentationPrefix.append( level * sink.indentSpaces, ' ' );
+		}
+
+		switch ( value.mType )
+		{
+		case JsonValue::Type::object:
+			sink.append( "{" );
+
+			if ( 0 < value.mMembers.size() )
+			{
+				for ( auto iter = value.mMembers.begin(); iter != value.mMembers.end(); ++iter )
+				{
+					if ( JsonValue::Indent::NONE != sink.indentation )
+					{
+						sink.append( indentationPrefix );
+					}
+
+					sink.append( "\"" );
+					sink.append( iter->first );
+					sink.append( "\":" );
+
+					if ( JsonValue::Indent::NONE != sink.indentation )
+					{
+						sink.append( " " );
+					}
+
+					_writeJSON( iter->second, sink, level + 1 );
+
+					if ( value.mMembers.end() != std::next( iter ) )
+					{
+						sink.append( "," );
+					}
+				}
+
+				if ( JsonValue::Indent::NONE != sink.indentation )
+				{
+					sink.append( indentationPrefix );
+				}
+			}
+
+			sink.append( "}" );
+			break;
+
+		case JsonValue::Type::array:
+			sink.append( "[" );
+
+			if ( 0 < value.mElements.size() )
+			{
+				for ( size_t index( -1 ); ++index < value.mElements.size(); )
+				{
+					if ( JsonValue::Indent::NONE != sink.indentation )
+					{
+						sink.append( indentationPrefix );
+					}
+
+					_writeJSON( value.mElements[ index ], sink, level + 1 );
+
+					if ( ( index + 1 ) != value.mElements.size() )
+					{
+						sink.append( "," );
+					}
+				}
+
+				if ( JsonValue::Indent::NONE != sink.indentation )
+				{
+					sink.append( indentationPrefix );
+				}
+			}
+
+			sink.append( "]" );
+			break;
+
+		case JsonValue::Type::string:
+			sink.append( value.mStringValue );
+			break;
+
+		case JsonValue::Type::number:
+			char buffer[ 128 ];
+			memset( buffer, 0, sizeof( buffer ) );
+
+			switch ( value.mNumericType )
+			{
+			case eNumberType::FLOATING:
+				snprintf( buffer, sizeof( buffer ), "%.*Le", LDBL_DIG + 3, value.mNumericValue.floatValue );
+				sink.append( std::string( buffer ) );
+				break;
+
+			case eNumberType::SIGNED_INTEGRAL:
+				snprintf( buffer, sizeof( buffer ), "%lld", value.mNumericValue.signedIntegral );
+				sink.append( std::string( buffer ) );
+				break;
+
+			case eNumberType::UNSIGNED_INTEGRAL:
+				snprintf( buffer, sizeof( buffer ), "%llu", value.mNumericValue.unsignedIntegral );
+				sink.append( std::string( buffer ) );
+				break;
+
+#ifdef INCLUDE_GMP
+			case eNumberType::MULTIPLE_PRECISION_FLOAT:
+				char* mpfString = mpf_get_str( nullptr, 10, value.mNumericValue. );
+				sink.append( std::string( mpfString ) );
+
+				// Now we need to free the buffer from gmp
+				void ( *freeFunction )( void*, size_t );
+				mp_get_memory_functions( nullptr, nullptr, &freeFunction );
+				freeFunction( mpzString, strlen( mpzString ) + 1 );
+				break;
+
+			case eNumberType::MULTIPLE_PRECISION_INTEGRAL:
+				char* mpzString = mpz_get_str( nullptr, 10, value.mNumericValue );
+				sink.append( std::string( mpzString ) );
+
+				// Now we need to free the buffer from gmp
+				void ( *freeFunction )( void*, size_t );
+				mp_get_memory_functions( nullptr, nullptr, &freeFunction );
+				freeFunction( mpzString, strlen( mpzString ) + 1 );
+				break;
+#endif
+			}
+
+			break;
+			
+		case JsonValue::Type::boolean:
+			sink.append( value.mBoolean ? "true" : "false" );
+			break;
+
+		case JsonValue::Type::null:
+			sink.append( "null" );
+			break;
+		}
 	}
 };
