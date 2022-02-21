@@ -1,5 +1,5 @@
 /**
- * Copyright ©2021-2022. Brent Weichel. All Rights Reserved.
+ * Copyright ©2022. Brent Weichel. All Rights Reserved.
  * Permission to use, copy, modify, and/or distribute this software, in whole
  * or part by any means, without express prior written agreement is prohibited.
  */
