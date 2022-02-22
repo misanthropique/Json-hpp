@@ -29,10 +29,45 @@ using Type = JsonValue::Type;
 static const std::string STD_STRING_KEY( "Key - std::string" );
 static const char* const CSTRING_KEY = "Key - cstring";
 
-TEST( JsonValueConstructor, DefaultConstructorShouldSetTypeToUndefined )
+TEST( JsonValueConstructor, DefaultConstructorShouldSetTypeToUndefinedIfNoParameterProvided )
 {
 	JsonValue defaultUndefined;
 
 	EXPECT_EQ( Type::undefined, defaultUndefined.type() );
-	EXPECT_TRUE( defaultUndefined.is( Type::undefine ) );
+	EXPECT_TRUE( defaultUndefined.is( Type::undefined ) );
+}
+
+TEST( JsonValueConstructor, DefaultConstructorShouldSetTypeToParameterType )
+{
+	std::vector< Type > defaultTypes {
+		Type::object, Type::array, Type::string, Type::number,
+		Type::boolean, Type::null, Type::undefined };
+
+	for ( const auto& type : defaultTypes )
+	{
+		JsonValue defaultConstructed( type );
+
+		EXPECT_EQ( type, defaultConstructed.type() );
+		EXPECT_TRUE( defaultConstructed.is( type ) );
+	}
+}
+
+TEST( JsonValueConstructor, CopyConstructorShouldCopyTypeInformationOfSource )
+{
+	JsonValue sourceJsonValue( Type::string );
+	JsonValue copyJsonValue( sourceJsonValue );
+
+	EXPECT_EQ( sourceJsonValue.type(), copyJsonValue.type() );
+	EXPECT_EQ( sourceJsonValue, copyJsonValue );
+}
+
+TEST( JsonValueConstructor, MoveConstructorShouldHaveTheTypeOfSourceJsonValueAndSourceJsonValueShouldHaveTypeUndefined )
+{
+	JsonValue sourceJsonValue( Type::boolean );
+	Type sourceType = sourceJsonValue.type();
+
+	JsonValue moveJsonValue( std::move( sourceJsonValue ) );
+
+	EXPECT_EQ( Type::undefined, sourceJsonValue.type() );
+	EXPECT_EQ( sourceType, moveJsonValue.type() );
 }
