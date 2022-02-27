@@ -176,12 +176,19 @@ private:
 		uint64_t mLastReadPosition;
 		uint64_t mCurrentReadPosition;
 
+		char* mBuffer;
+		size_t mBufferSize;
+		size_t mBufferLength;
+
 		// Initialize the other variables
 		void _initializeVariables( Source source )
 		{
 			mSource = source;
 			mLastReadPosition = 0;
 			mCurrentReadPosition = 0;
+			mBuffer = static_cast< char* >( calloc( 1024, 1 ) );
+			mBufferSize = 1024;
+			mBufferLength = 0;
 		}
 
 	public:
@@ -207,6 +214,16 @@ private:
 			mIFStreamSource( ifstreamSource )
 		{
 			_initializeVariables( Source::IFSTREAM );
+		}
+
+		// Free up the memory we've allocated
+		~ParseSource()
+		{
+			if ( nullptr != mBuffer )
+			{
+				free( mBuffer );
+				mBuffer = nullptr;
+			}
 		}
 
 		// Copy from the current read position
@@ -286,6 +303,29 @@ private:
 			}
 		}
 	};
+
+#ifdef INCLUDE_GMP
+	std::string _mpzToString( mpz_t integralValue )
+	{
+		std::string mpzString;
+		char* cstring = nullptr;
+
+		cstring = mpz_get_str( nullptr, 10, mNumericValue.MPFloatValue );
+		mpzString = std::string( cstring );
+
+		mp_get_memory_functions( nullptr, nullptr, &freeFunction );
+		freeFunction( cstring, strlen( cstring ) + 1 );
+		cstring = nullptr;
+
+		return mpzString;
+	}
+
+	std::string _mpfToString( mpf_t floatValue )
+	{
+		mp_exp_t exponent;
+		char* 
+	}
+#endif
 
 public:
 	/**
