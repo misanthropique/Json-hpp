@@ -71,3 +71,15 @@ TEST( JsonValueConstructor, MoveConstructorShouldHaveTheTypeOfSourceJsonValueAnd
 	EXPECT_EQ( Type::undefined, sourceJsonValue.type() );
 	EXPECT_EQ( sourceType, moveJsonValue.type() );
 }
+
+TEST( JsonValueConstructor, ObjectTypeMoveConstructorShouldSetJsonValueToTypeObject )
+{
+	JsonValue::ObjectType dictionary
+	{
+		{ "empty_string", Type::string },
+		{ "empty_number", Type::number },
+		{ "null", Type::null }
+	};
+
+	
+}
